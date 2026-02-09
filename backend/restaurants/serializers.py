@@ -121,3 +121,31 @@ class MenuItemSerializer(serializers.ModelSerializer):
         validated_data.pop("modifiers", None)
         validated_data.pop("category_id", None)
         return super().update(instance, validated_data)
+
+
+class PublicMenuItemSerializer(serializers.ModelSerializer):
+    variants = MenuItemVariantSerializer(many=True, read_only=True)
+    modifiers = MenuItemModifierSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = MenuItem
+        fields = ["id", "name", "description", "image_url", "variants", "modifiers"]
+
+
+class PublicMenuCategorySerializer(serializers.ModelSerializer):
+    items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MenuCategory
+        fields = ["id", "name", "items"]
+
+    def get_items(self, obj):
+        active_items = obj.items.filter(is_active=True).prefetch_related(
+            "variants", "modifiers"
+        )
+        return PublicMenuItemSerializer(active_items, many=True).data
+
+
+class PublicMenuSerializer(serializers.Serializer):
+    restaurant_name = serializers.CharField()
+    categories = PublicMenuCategorySerializer(many=True)
