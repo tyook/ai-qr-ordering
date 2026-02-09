@@ -5,6 +5,7 @@ from restaurants.views import (
     RegisterView, LoginView,
     MyRestaurantsView, CreateRestaurantView, RestaurantDetailView,
     MenuCategoryListCreateView, MenuCategoryDetailView,
+    MenuItemListCreateView, MenuItemDetailView,
 )
 
 urlpatterns = [
@@ -26,5 +27,16 @@ urlpatterns = [
         "restaurants/<slug:slug>/categories/<int:pk>/",
         MenuCategoryDetailView.as_view(),
         name="menu-category-detail",
+    ),
+    # Menu Items
+    path(
+        "restaurants/<slug:slug>/items/",
+        MenuItemListCreateView.as_view(),
+        name="menu-items",
+    ),
+    path(
+        "restaurants/<slug:slug>/items/<int:pk>/",
+        MenuItemDetailView.as_view(),
+        name="menu-item-detail",
     ),
 ]

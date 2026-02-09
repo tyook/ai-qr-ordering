@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer
-from restaurants.models import Restaurant, RestaurantStaff, MenuCategory
+from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer, MenuItemSerializer
+from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem
 from restaurants.permissions import IsRestaurantOwnerOrStaff
 
 
@@ -111,3 +111,50 @@ class MenuCategoryDetailView(RestaurantMixin, generics.RetrieveUpdateAPIView):
     def get_queryset(self):
         restaurant = self.get_restaurant()
         return MenuCategory.objects.filter(restaurant=restaurant)
+
+
+class MenuItemListCreateView(RestaurantMixin, generics.ListCreateAPIView):
+    serializer_class = MenuItemSerializer
+
+    def get_queryset(self):
+        restaurant = self.get_restaurant()
+        return MenuItem.objects.filter(
+            category__restaurant=restaurant
+        ).prefetch_related("variants", "modifiers")
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["restaurant"] = self.get_restaurant()
+        return ctx
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class MenuItemDetailView(RestaurantMixin, generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = MenuItemSerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        restaurant = self.get_restaurant()
+        return MenuItem.objects.filter(
+            category__restaurant=restaurant
+        ).prefetch_related("variants", "modifiers")
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["restaurant"] = self.get_restaurant()
+        return ctx
+
+    def perform_destroy(self, instance):
+        """Soft-delete: deactivate instead of deleting."""
+        instance.is_active = False
+        instance.save()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(
+            {"status": "deactivated", "id": instance.id},
+            status=status.HTTP_200_OK,
+        )

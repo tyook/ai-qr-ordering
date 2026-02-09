@@ -66,3 +66,58 @@ class MenuCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuCategory
         fields = ["id", "name", "sort_order", "is_active"]
+
+
+class MenuItemModifierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuItemModifier
+        fields = ["id", "name", "price_adjustment"]
+
+
+class MenuItemVariantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuItemVariant
+        fields = ["id", "label", "price", "is_default"]
+
+
+class MenuItemSerializer(serializers.ModelSerializer):
+    variants = MenuItemVariantSerializer(many=True, required=False)
+    modifiers = MenuItemModifierSerializer(many=True, required=False)
+    category_id = serializers.IntegerField(write_only=True)
+
+    class Meta:
+        model = MenuItem
+        fields = [
+            "id", "category_id", "name", "description", "image_url",
+            "is_active", "sort_order", "variants", "modifiers",
+        ]
+        read_only_fields = ["id"]
+
+    def create(self, validated_data):
+        variants_data = validated_data.pop("variants", [])
+        modifiers_data = validated_data.pop("modifiers", [])
+        category_id = validated_data.pop("category_id")
+
+        # Verify category belongs to the restaurant
+        restaurant = self.context["restaurant"]
+        try:
+            category = MenuCategory.objects.get(id=category_id, restaurant=restaurant)
+        except MenuCategory.DoesNotExist:
+            raise serializers.ValidationError({"category_id": "Invalid category."})
+
+        item = MenuItem.objects.create(category=category, **validated_data)
+
+        for variant_data in variants_data:
+            MenuItemVariant.objects.create(menu_item=item, **variant_data)
+        for modifier_data in modifiers_data:
+            MenuItemModifier.objects.create(menu_item=item, **modifier_data)
+
+        return item
+
+    def update(self, instance, validated_data):
+        # For simplicity, variants/modifiers are not updated inline on PATCH.
+        # They can be managed separately in a future iteration.
+        validated_data.pop("variants", None)
+        validated_data.pop("modifiers", None)
+        validated_data.pop("category_id", None)
+        return super().update(instance, validated_data)
