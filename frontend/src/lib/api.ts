@@ -25,3 +25,50 @@ export async function apiFetch<T>(
 
   return response.json();
 }
+
+import type {
+  PublicMenu,
+  ParsedOrderResponse,
+  ConfirmOrderItem,
+  OrderResponse,
+} from "@/types";
+
+export async function fetchMenu(slug: string): Promise<PublicMenu> {
+  return apiFetch<PublicMenu>(`/api/order/${slug}/menu/`);
+}
+
+export async function parseOrder(
+  slug: string,
+  rawInput: string
+): Promise<ParsedOrderResponse> {
+  return apiFetch<ParsedOrderResponse>(`/api/order/${slug}/parse/`, {
+    method: "POST",
+    body: JSON.stringify({ raw_input: rawInput }),
+  });
+}
+
+export async function confirmOrder(
+  slug: string,
+  items: ConfirmOrderItem[],
+  rawInput: string,
+  tableIdentifier: string,
+  language: string
+): Promise<OrderResponse> {
+  return apiFetch<OrderResponse>(`/api/order/${slug}/confirm/`, {
+    method: "POST",
+    body: JSON.stringify({
+      items,
+      raw_input: rawInput,
+      table_identifier: tableIdentifier,
+      language,
+    }),
+  });
+}
+
+export async function fetchOrderStatus(
+  slug: string,
+  orderId: string
+): Promise<OrderResponse> {
+  return apiFetch<OrderResponse>(`/api/order/${slug}/status/${orderId}/`);
+}
+
