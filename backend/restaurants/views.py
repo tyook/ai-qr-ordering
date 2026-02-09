@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer, MenuItemSerializer
+from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer, MenuItemSerializer, PublicMenuCategorySerializer
 from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem
 from restaurants.permissions import IsRestaurantOwnerOrStaff
 
@@ -158,3 +158,31 @@ class MenuItemDetailView(RestaurantMixin, generics.RetrieveUpdateDestroyAPIView)
             {"status": "deactivated", "id": instance.id},
             status=status.HTTP_200_OK,
         )
+
+
+class FullMenuView(RestaurantMixin, APIView):
+    """GET /api/restaurants/:slug/menu/ - Full menu including inactive items."""
+
+    def get(self, request, slug):
+        restaurant = self.get_restaurant()
+        categories = (
+            MenuCategory.objects.filter(restaurant=restaurant)
+            .prefetch_related("items__variants", "items__modifiers")
+            .order_by("sort_order")
+        )
+        # Use a version that includes inactive items
+        data = []
+        for cat in categories:
+            cat_data = {
+                "id": cat.id,
+                "name": cat.name,
+                "sort_order": cat.sort_order,
+                "is_active": cat.is_active,
+                "items": MenuItemSerializer(
+                    cat.items.prefetch_related("variants", "modifiers"),
+                    many=True,
+                ).data,
+            }
+            data.append(cat_data)
+
+        return Response({"restaurant_name": restaurant.name, "categories": data})

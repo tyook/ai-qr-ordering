@@ -110,3 +110,22 @@ class TestMenuItemAPI:
         assert response.status_code == status.HTTP_200_OK
         item.refresh_from_db()
         assert item.is_active is False
+
+
+@pytest.mark.django_db
+class TestFullMenuAPI:
+    def test_get_full_menu_includes_inactive(self, api_client):
+        owner = UserFactory()
+        restaurant = RestaurantFactory(owner=owner)
+        cat = MenuCategoryFactory(restaurant=restaurant)
+        MenuItemFactory(category=cat, is_active=True)
+        MenuItemFactory(category=cat, is_active=False)
+
+        api_client.force_authenticate(user=owner)
+        response = api_client.get(f"/api/restaurants/{restaurant.slug}/menu/")
+        assert response.status_code == status.HTTP_200_OK
+        # Admin view includes all items (active and inactive)
+        total_items = sum(
+            len(cat["items"]) for cat in response.data["categories"]
+        )
+        assert total_items == 2

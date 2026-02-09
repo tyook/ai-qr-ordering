@@ -6,6 +6,7 @@ from restaurants.views import (
     MyRestaurantsView, CreateRestaurantView, RestaurantDetailView,
     MenuCategoryListCreateView, MenuCategoryDetailView,
     MenuItemListCreateView, MenuItemDetailView,
+    FullMenuView,
 )
 
 urlpatterns = [
@@ -38,5 +39,11 @@ urlpatterns = [
         "restaurants/<slug:slug>/items/<int:pk>/",
         MenuItemDetailView.as_view(),
         name="menu-item-detail",
+    ),
+    # Full Menu (Admin)
+    path(
+        "restaurants/<slug:slug>/menu/",
+        FullMenuView.as_view(),
+        name="full-menu",
     ),
 ]
