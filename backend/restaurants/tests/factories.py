@@ -27,6 +27,15 @@ class RestaurantFactory(factory.django.DjangoModelFactory):
     owner = factory.SubFactory(UserFactory)
 
 
+class RestaurantStaffFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = RestaurantStaff
+
+    user = factory.SubFactory(UserFactory)
+    restaurant = factory.SubFactory(RestaurantFactory)
+    role = "manager"
+
+
 class MenuCategoryFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = MenuCategory
