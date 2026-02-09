@@ -88,6 +88,10 @@ class TestRestaurantStaffModel:
 
 from restaurants.models import MenuCategory, MenuItem, MenuItemVariant, MenuItemModifier
 from decimal import Decimal
+from restaurants.tests.factories import (
+    UserFactory, RestaurantFactory, MenuCategoryFactory,
+    MenuItemFactory, MenuItemVariantFactory, MenuItemModifierFactory,
+)
 
 
 @pytest.mark.django_db
@@ -134,3 +138,15 @@ class TestMenuModels:
             category=cat, name="Coke", description="", sort_order=1
         )
         assert item.category.restaurant == restaurant
+
+
+@pytest.mark.django_db
+class TestFactories:
+    def test_user_factory(self):
+        user = UserFactory()
+        assert user.email
+        assert user.check_password("testpass123")
+
+    def test_full_menu_factory_chain(self):
+        variant = MenuItemVariantFactory()
+        assert variant.menu_item.category.restaurant.owner.email
