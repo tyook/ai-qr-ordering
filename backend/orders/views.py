@@ -1,10 +1,10 @@
 from decimal import Decimal
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from restaurants.models import Restaurant, MenuCategory, MenuItem, MenuItemVariant, MenuItemModifier
+from restaurants.models import Restaurant, MenuCategory, MenuItem, MenuItemVariant, MenuItemModifier, RestaurantStaff
 from restaurants.serializers import PublicMenuCategorySerializer
 from orders.serializers import ParseInputSerializer, ConfirmOrderSerializer, OrderResponseSerializer
 from orders.services import validate_and_price_order
@@ -179,5 +179,55 @@ class OrderStatusView(APIView):
                 {"detail": "Order not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        return Response(OrderResponseSerializer(order).data)
+
+
+VALID_TRANSITIONS = {
+    "confirmed": ["preparing"],
+    "preparing": ["ready"],
+    "ready": ["completed"],
+}
+
+
+class KitchenOrderUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response(
+                {"detail": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Check user is staff at this restaurant
+        is_owner = order.restaurant.owner == request.user
+        is_staff = RestaurantStaff.objects.filter(
+            user=request.user, restaurant=order.restaurant
+        ).exists()
+        if not is_owner and not is_staff:
+            return Response(
+                {"detail": "Not authorized."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        new_status = request.data.get("status")
+        allowed = VALID_TRANSITIONS.get(order.status, [])
+        if new_status not in allowed:
+            return Response(
+                {
+                    "detail": f"Cannot transition from '{order.status}' to '{new_status}'. "
+                    f"Allowed: {allowed}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.status = new_status
+        order.save()
+
+        # Broadcast status change to kitchen
+        broadcast_order_to_kitchen(order)
 
         return Response(OrderResponseSerializer(order).data)

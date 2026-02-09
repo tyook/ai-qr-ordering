@@ -9,6 +9,7 @@ from orders.tests.factories import OrderFactory
 from restaurants.tests.factories import (
     RestaurantFactory, MenuCategoryFactory, MenuItemFactory,
     MenuItemVariantFactory, MenuItemModifierFactory,
+    UserFactory, RestaurantStaffFactory,
 )
 
 
@@ -178,3 +179,61 @@ class TestOrderStatus:
         order = OrderFactory(restaurant=restaurant1)
         response = api_client.get(f"/api/order/r2/status/{order.id}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+class TestKitchenOrderUpdate:
+    @pytest.fixture
+    def kitchen_setup(self):
+        restaurant = RestaurantFactory(slug="kitchen-test")
+        kitchen_user = UserFactory(role="staff")
+        RestaurantStaffFactory(
+            user=kitchen_user, restaurant=restaurant, role="kitchen"
+        )
+        order = OrderFactory(restaurant=restaurant, status="confirmed")
+        return restaurant, kitchen_user, order
+
+    def test_kitchen_staff_can_update_status(self, api_client, kitchen_setup):
+        restaurant, kitchen_user, order = kitchen_setup
+        api_client.force_authenticate(user=kitchen_user)
+        response = api_client.patch(
+            f"/api/kitchen/orders/{order.id}/",
+            {"status": "preparing"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "preparing"
+
+    def test_non_staff_cannot_update(self, api_client, kitchen_setup):
+        _, _, order = kitchen_setup
+        outsider = UserFactory()
+        api_client.force_authenticate(user=outsider)
+        response = api_client.patch(
+            f"/api/kitchen/orders/{order.id}/",
+            {"status": "preparing"},
+            format="json",
+        )
+        assert response.status_code in [
+            status.HTTP_403_FORBIDDEN,
+            status.HTTP_404_NOT_FOUND,
+        ]
+
+    def test_invalid_status_transition_rejected(self, api_client, kitchen_setup):
+        restaurant, kitchen_user, order = kitchen_setup
+        api_client.force_authenticate(user=kitchen_user)
+        # Can't go from confirmed directly to completed
+        response = api_client.patch(
+            f"/api/kitchen/orders/{order.id}/",
+            {"status": "completed"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_unauthenticated_cannot_update(self, api_client, kitchen_setup):
+        _, _, order = kitchen_setup
+        response = api_client.patch(
+            f"/api/kitchen/orders/{order.id}/",
+            {"status": "preparing"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
