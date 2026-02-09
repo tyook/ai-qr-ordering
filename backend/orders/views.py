@@ -11,6 +11,7 @@ from orders.services import validate_and_price_order
 from orders.llm.menu_context import build_menu_context
 from orders.llm.openai_provider import OpenAIProvider
 from orders.models import Order, OrderItem
+from orders.broadcast import broadcast_order_to_kitchen
 
 
 def get_llm_provider():
@@ -156,6 +157,8 @@ class ConfirmOrderView(APIView):
                 special_requests=item_data["special_requests"],
             )
             order_item.modifiers.set(item_data["modifiers"])
+
+        broadcast_order_to_kitchen(order)
 
         return Response(
             OrderResponseSerializer(order).data,
