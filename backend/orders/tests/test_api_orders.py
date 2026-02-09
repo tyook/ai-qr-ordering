@@ -5,6 +5,7 @@ from rest_framework import status
 
 from orders.llm.base import ParsedOrder, ParsedOrderItem
 from orders.models import Order
+from orders.tests.factories import OrderFactory
 from restaurants.tests.factories import (
     RestaurantFactory, MenuCategoryFactory, MenuItemFactory,
     MenuItemVariantFactory, MenuItemModifierFactory,
@@ -157,3 +158,23 @@ class TestConfirmOrder:
             format="json",
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+class TestOrderStatus:
+    def test_get_order_status(self, api_client):
+        restaurant = RestaurantFactory(slug="status-test")
+        order = OrderFactory(restaurant=restaurant, status="preparing")
+        response = api_client.get(
+            f"/api/order/status-test/status/{order.id}/"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "preparing"
+        assert response.data["id"] == str(order.id)
+
+    def test_order_from_wrong_restaurant_returns_404(self, api_client):
+        restaurant1 = RestaurantFactory(slug="r1")
+        restaurant2 = RestaurantFactory(slug="r2")
+        order = OrderFactory(restaurant=restaurant1)
+        response = api_client.get(f"/api/order/r2/status/{order.id}/")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
