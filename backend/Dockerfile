@@ -5,7 +5,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false
+
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-interaction --no-ansi --no-root
 
 COPY . .
