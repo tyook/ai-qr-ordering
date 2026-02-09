@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiFetch } from "@/lib/api";
 import type { OrderResponse } from "@/types";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -18,10 +17,9 @@ const statusVariant: Record<string, "default" | "secondary" | "outline" | "destr
 };
 
 export default function OrderHistoryPage() {
-  const params = useParams<{ slug: string }>();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const [orders, setOrders] = useState<OrderResponse[]>([]);
+  const [orders] = useState<OrderResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

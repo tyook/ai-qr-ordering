@@ -63,14 +63,6 @@ export default function MenuManagementPage() {
     variantPrice: "",
   });
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/admin/login");
-      return;
-    }
-    loadMenu();
-  }, [isAuthenticated, router]);
-
   const loadMenu = async () => {
     try {
       const data = await apiFetch<FullMenu>(
@@ -83,6 +75,15 @@ export default function MenuManagementPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/admin/login");
+      return;
+    }
+    loadMenu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, router]);
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
