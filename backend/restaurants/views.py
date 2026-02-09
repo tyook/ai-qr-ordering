@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer
-from restaurants.models import Restaurant, RestaurantStaff
+from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer
+from restaurants.models import Restaurant, RestaurantStaff, MenuCategory
 from restaurants.permissions import IsRestaurantOwnerOrStaff
 
 
@@ -67,3 +67,47 @@ class RestaurantDetailView(generics.RetrieveUpdateAPIView):
         )
         staffed = Restaurant.objects.filter(id__in=staff_ids)
         return (owned | staffed).distinct()
+
+
+class RestaurantMixin:
+    """Mixin to resolve restaurant from URL slug and check access."""
+
+    def get_restaurant(self):
+        slug = self.kwargs["slug"]
+        user = self.request.user
+        try:
+            restaurant = Restaurant.objects.get(slug=slug)
+        except Restaurant.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Restaurant not found.")
+
+        is_owner = restaurant.owner == user
+        is_staff = RestaurantStaff.objects.filter(
+            user=user, restaurant=restaurant
+        ).exists()
+        if not is_owner and not is_staff:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Restaurant not found.")
+
+        return restaurant
+
+
+class MenuCategoryListCreateView(RestaurantMixin, generics.ListCreateAPIView):
+    serializer_class = MenuCategorySerializer
+
+    def get_queryset(self):
+        restaurant = self.get_restaurant()
+        return MenuCategory.objects.filter(restaurant=restaurant)
+
+    def perform_create(self, serializer):
+        restaurant = self.get_restaurant()
+        serializer.save(restaurant=restaurant)
+
+
+class MenuCategoryDetailView(RestaurantMixin, generics.RetrieveUpdateAPIView):
+    serializer_class = MenuCategorySerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        restaurant = self.get_restaurant()
+        return MenuCategory.objects.filter(restaurant=restaurant)

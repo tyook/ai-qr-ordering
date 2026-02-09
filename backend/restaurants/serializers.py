@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
-from restaurants.models import Restaurant, RestaurantStaff
+from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem, MenuItemVariant, MenuItemModifier
 
 User = get_user_model()
 
@@ -60,3 +60,9 @@ class RestaurantSerializer(serializers.ModelSerializer):
             role="owner",
         )
         return restaurant
+
+
+class MenuCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuCategory
+        fields = ["id", "name", "sort_order", "is_active"]

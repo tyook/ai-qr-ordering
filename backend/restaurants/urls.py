@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from restaurants.views import (
     RegisterView, LoginView,
     MyRestaurantsView, CreateRestaurantView, RestaurantDetailView,
+    MenuCategoryListCreateView, MenuCategoryDetailView,
 )
 
 urlpatterns = [
@@ -15,4 +16,15 @@ urlpatterns = [
     path("restaurants/me/", MyRestaurantsView.as_view(), name="my-restaurants"),
     path("restaurants/", CreateRestaurantView.as_view(), name="create-restaurant"),
     path("restaurants/<slug:slug>/", RestaurantDetailView.as_view(), name="restaurant-detail"),
+    # Menu Categories
+    path(
+        "restaurants/<slug:slug>/categories/",
+        MenuCategoryListCreateView.as_view(),
+        name="menu-categories",
+    ),
+    path(
+        "restaurants/<slug:slug>/categories/<int:pk>/",
+        MenuCategoryDetailView.as_view(),
+        name="menu-category-detail",
+    ),
 ]
