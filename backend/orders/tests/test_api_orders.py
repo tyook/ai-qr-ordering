@@ -4,6 +4,7 @@ from unittest.mock import patch
 from rest_framework import status
 
 from orders.llm.base import ParsedOrder, ParsedOrderItem
+from orders.models import Order
 from restaurants.tests.factories import (
     RestaurantFactory, MenuCategoryFactory, MenuItemFactory,
     MenuItemVariantFactory, MenuItemModifierFactory,
@@ -80,3 +81,79 @@ class TestParseOrder:
         assert response.status_code == status.HTTP_200_OK
         # Invalid items are silently dropped
         assert len(response.data["items"]) == 0
+
+
+@pytest.mark.django_db
+class TestConfirmOrder:
+    @pytest.fixture
+    def menu_setup(self):
+        restaurant = RestaurantFactory(slug="confirm-test")
+        cat = MenuCategoryFactory(restaurant=restaurant)
+        item = MenuItemFactory(category=cat, name="Pizza")
+        variant = MenuItemVariantFactory(
+            menu_item=item, label="Large", price=Decimal("14.99"), is_default=True
+        )
+        modifier = MenuItemModifierFactory(
+            menu_item=item, name="Extra Cheese", price_adjustment=Decimal("2.00")
+        )
+        return {
+            "restaurant": restaurant,
+            "item": item,
+            "variant": variant,
+            "modifier": modifier,
+        }
+
+    def test_confirm_creates_order(self, api_client, menu_setup):
+        response = api_client.post(
+            "/api/order/confirm-test/confirm/",
+            {
+                "items": [
+                    {
+                        "menu_item_id": menu_setup["item"].id,
+                        "variant_id": menu_setup["variant"].id,
+                        "quantity": 2,
+                        "modifier_ids": [menu_setup["modifier"].id],
+                        "special_requests": "well done",
+                    }
+                ],
+                "raw_input": "Two large pizzas with extra cheese",
+                "table_identifier": "5",
+                "language": "en",
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["status"] == "confirmed"
+        assert response.data["table_identifier"] == "5"
+        # Price: (14.99 + 2.00) * 2 = 33.98
+        assert Decimal(response.data["total_price"]) == Decimal("33.98")
+
+        # Verify order exists in DB
+        order = Order.objects.get(id=response.data["id"])
+        assert order.items.count() == 1
+        assert order.items.first().quantity == 2
+
+    def test_confirm_rejects_invalid_items(self, api_client, menu_setup):
+        response = api_client.post(
+            "/api/order/confirm-test/confirm/",
+            {
+                "items": [
+                    {
+                        "menu_item_id": 99999,
+                        "variant_id": 99999,
+                        "quantity": 1,
+                    }
+                ],
+                "raw_input": "invalid",
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_confirm_with_no_items_rejected(self, api_client, menu_setup):
+        response = api_client.post(
+            "/api/order/confirm-test/confirm/",
+            {"items": [], "raw_input": "nothing"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
