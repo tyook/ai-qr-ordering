@@ -7,6 +7,15 @@ import { useOrderStore } from "@/stores/order-store";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { parseOrder } from "@/lib/api";
 
+const SPEECH_LANGUAGES = [
+  { code: "en-US", label: "English" },
+  { code: "ko-KR", label: "한국어" },
+  { code: "ja-JP", label: "日本語" },
+  { code: "zh-CN", label: "中文" },
+  { code: "es-ES", label: "Español" },
+  { code: "vi-VN", label: "Tiếng Việt" },
+] as const;
+
 interface InputStepProps {
   slug: string;
 }
@@ -15,8 +24,9 @@ export function InputStep({ slug }: InputStepProps) {
   const { setStep, setRawInput, setParsedResult, setError, rawInput } =
     useOrderStore();
   const [input, setInput] = useState(rawInput);
+  const [speechLang, setSpeechLang] = useState("en-US");
   const { isListening, transcript, startListening, stopListening, isSupported } =
-    useSpeechRecognition();
+    useSpeechRecognition({ lang: speechLang || undefined });
 
   const currentInput = isListening ? transcript : input;
 
@@ -62,14 +72,28 @@ export function InputStep({ slug }: InputStepProps) {
         disabled={isListening}
       />
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {isSupported && (
-          <Button
-            variant={isListening ? "destructive" : "outline"}
-            onClick={toggleVoice}
-          >
-            {isListening ? "Stop Recording" : "Speak Order"}
-          </Button>
+          <>
+            <select
+              value={speechLang}
+              onChange={(e) => setSpeechLang(e.target.value)}
+              disabled={isListening}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {SPEECH_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant={isListening ? "destructive" : "outline"}
+              onClick={toggleVoice}
+            >
+              {isListening ? "Stop Recording" : "Speak Order"}
+            </Button>
+          </>
         )}
         <Button onClick={handleSubmit} disabled={!currentInput.trim()}>
           Submit Order

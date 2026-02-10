@@ -31,11 +31,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: python manage.py runserver 0.0.0.0:8000
+    command: python manage.py runserver 0.0.0.0:5005
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"
+      - "5005:5005"
     env_file:
       - .env
     depends_on:
@@ -48,7 +48,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    command: npm run dev
+    command: yarn dev
     volumes:
       - ./frontend:/app
       - /app/node_modules

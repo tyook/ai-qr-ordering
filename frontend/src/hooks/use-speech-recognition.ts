@@ -2,6 +2,10 @@
 
 import { useState, useRef, useCallback } from "react";
 
+interface UseSpeechRecognitionOptions {
+  lang?: string;
+}
+
 interface UseSpeechRecognitionReturn {
   isListening: boolean;
   transcript: string;
@@ -10,7 +14,10 @@ interface UseSpeechRecognitionReturn {
   isSupported: boolean;
 }
 
-export function useSpeechRecognition(): UseSpeechRecognitionReturn {
+export function useSpeechRecognition(
+  options: UseSpeechRecognitionOptions = {}
+): UseSpeechRecognitionReturn {
+  const { lang } = options;
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -28,6 +35,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
     recognition.continuous = true;
     recognition.interimResults = true;
+    if (lang) {
+      recognition.lang = lang;
+    }
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = "";
@@ -48,7 +58,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
-  }, [isSupported]);
+  }, [isSupported, lang]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {

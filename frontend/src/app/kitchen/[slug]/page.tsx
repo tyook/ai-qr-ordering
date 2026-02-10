@@ -8,7 +8,7 @@ import { OrderColumn } from "./components/OrderColumn";
 import { Badge } from "@/components/ui/badge";
 import type { OrderResponse } from "@/types";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5005";
 
 const NEXT_STATUS: Record<string, string> = {
   confirmed: "preparing",
@@ -43,7 +43,7 @@ export default function KitchenPage() {
     const token = localStorage.getItem("access_token");
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/kitchen/orders/${orderId}/`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005"}/api/kitchen/orders/${orderId}/`,
         {
           method: "PATCH",
           headers: {
