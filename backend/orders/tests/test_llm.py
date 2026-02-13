@@ -3,7 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 from orders.llm.base import ParsedOrder, ParsedOrderItem
-from orders.llm.openai_provider import OpenAIProvider
+from orders.llm.agent import OrderParsingAgent
 from orders.llm.menu_context import build_menu_context
 from restaurants.tests.factories import (
     RestaurantFactory, MenuCategoryFactory, MenuItemFactory,
@@ -12,7 +12,7 @@ from restaurants.tests.factories import (
 
 
 class TestParsedOrder:
-    def test_parsed_order_dataclass(self):
+    def test_parsed_order_model(self):
         item = ParsedOrderItem(
             menu_item_id=1,
             variant_id=10,
@@ -22,6 +22,14 @@ class TestParsedOrder:
         )
         order = ParsedOrder(items=[item], language="en")
         assert len(order.items) == 1
+        assert order.language == "en"
+
+    def test_parsed_order_defaults(self):
+        item = ParsedOrderItem(menu_item_id=1, variant_id=10, quantity=1)
+        assert item.modifier_ids == []
+        assert item.special_requests == ""
+
+        order = ParsedOrder(items=[item])
         assert order.language == "en"
 
 
@@ -55,24 +63,62 @@ class TestMenuContext:
         assert "Hidden Item" not in context
 
 
-class TestOpenAIProvider:
-    @patch("orders.llm.openai_provider.openai_client")
-    def test_parse_order_calls_openai_and_returns_parsed(self, mock_client):
-        mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(
-                message=MagicMock(
-                    content='{"items": [{"menu_item_id": 1, "variant_id": 10, "quantity": 2, "modifier_ids": [], "special_requests": ""}], "language": "en"}'
+class TestOrderParsingAgent:
+    def test_agent_properties(self):
+        agent = OrderParsingAgent()
+        assert agent.get_name() == "OrderParsingAgent"
+        assert agent.default_model == "gpt-4o-mini"
+        assert agent.get_output_schema() is ParsedOrder
+        assert "order-taking assistant" in agent.get_instructions()
+
+    def test_agent_context_building(self):
+        agent = OrderParsingAgent()
+        context = agent.get_context(
+            raw_input="Two pizzas please",
+            menu_context="## Pizzas\n  - Margherita",
+        )
+        assert "customer_order" in context
+        assert context["customer_order"] == "Two pizzas please"
+        assert "restaurant_menu" in context
+        assert "Margherita" in context["restaurant_menu"]
+
+    def test_agent_context_xml_formatting(self):
+        agent = OrderParsingAgent()
+        context = agent.get_context(
+            raw_input="One burger",
+            menu_context="## Burgers",
+        )
+        xml = agent._format_context(context)
+        assert "<customer_order>" in xml
+        assert "</customer_order>" in xml
+        assert "<restaurant_menu>" in xml
+        assert "</restaurant_menu>" in xml
+
+    @patch("ai.base_agent.Agent")
+    def test_agent_run_calls_agno(self, mock_agent_class):
+        """Verify that run() creates an agno Agent and calls run() on it."""
+        mock_parsed = ParsedOrder(
+            items=[
+                ParsedOrderItem(
+                    menu_item_id=1, variant_id=10, quantity=2,
                 )
-            )
-        ]
-        mock_client.chat.completions.create.return_value = mock_response
+            ],
+            language="en",
+        )
+        mock_run_output = MagicMock()
+        mock_run_output.content = mock_parsed
 
-        provider = OpenAIProvider()
-        result = provider.parse_order("Two large margheritas", "menu context here")
+        mock_agent_instance = MagicMock()
+        mock_agent_instance.run.return_value = mock_run_output
+        mock_agent_class.return_value = mock_agent_instance
 
-        assert len(result.items) == 1
+        result = OrderParsingAgent.run(
+            raw_input="Two large margheritas",
+            menu_context="menu context here",
+        )
+
+        assert result == mock_parsed
         assert result.items[0].menu_item_id == 1
         assert result.items[0].quantity == 2
         assert result.language == "en"
-        mock_client.chat.completions.create.assert_called_once()
+        mock_agent_instance.run.assert_called_once()

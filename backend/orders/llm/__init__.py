@@ -1,11 +1,10 @@
-from orders.llm.base import LLMProvider, ParsedOrder, ParsedOrderItem
-from orders.llm.openai_provider import OpenAIProvider
+from orders.llm.base import ParsedOrder, ParsedOrderItem
+from orders.llm.agent import OrderParsingAgent
 from orders.llm.menu_context import build_menu_context
 
 __all__ = [
-    "LLMProvider",
     "ParsedOrder",
     "ParsedOrderItem",
-    "OpenAIProvider",
+    "OrderParsingAgent",
     "build_menu_context",
 ]

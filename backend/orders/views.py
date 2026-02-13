@@ -9,13 +9,9 @@ from restaurants.serializers import PublicMenuCategorySerializer
 from orders.serializers import ParseInputSerializer, ConfirmOrderSerializer, OrderResponseSerializer
 from orders.services import validate_and_price_order
 from orders.llm.menu_context import build_menu_context
-from orders.llm.openai_provider import OpenAIProvider
+from orders.llm.agent import OrderParsingAgent
 from orders.models import Order, OrderItem
 from orders.broadcast import broadcast_order_to_kitchen
-
-
-def get_llm_provider():
-    return OpenAIProvider()
 
 
 class PublicMenuView(APIView):
@@ -61,8 +57,10 @@ class ParseOrderView(APIView):
 
         raw_input = serializer.validated_data["raw_input"]
         menu_context = build_menu_context(restaurant)
-        provider = get_llm_provider()
-        parsed = provider.parse_order(raw_input, menu_context)
+        parsed = OrderParsingAgent.run(
+            raw_input=raw_input,
+            menu_context=menu_context,
+        )
         result = validate_and_price_order(restaurant, parsed)
 
         return Response(result)

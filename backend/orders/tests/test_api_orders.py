@@ -33,10 +33,9 @@ class TestParseOrder:
             "modifier": modifier,
         }
 
-    @patch("orders.views.get_llm_provider")
-    def test_parse_returns_structured_order(self, mock_get_provider, api_client, menu_setup):
-        mock_provider = mock_get_provider.return_value
-        mock_provider.parse_order.return_value = ParsedOrder(
+    @patch("orders.views.OrderParsingAgent.run")
+    def test_parse_returns_structured_order(self, mock_run, api_client, menu_setup):
+        mock_run.return_value = ParsedOrder(
             items=[
                 ParsedOrderItem(
                     menu_item_id=menu_setup["item"].id,
@@ -61,10 +60,9 @@ class TestParseOrder:
         assert response.data["total_price"] == "14.99"
         assert response.data["language"] == "en"
 
-    @patch("orders.views.get_llm_provider")
-    def test_parse_rejects_invalid_item_ids(self, mock_get_provider, api_client, menu_setup):
-        mock_provider = mock_get_provider.return_value
-        mock_provider.parse_order.return_value = ParsedOrder(
+    @patch("orders.views.OrderParsingAgent.run")
+    def test_parse_rejects_invalid_item_ids(self, mock_run, api_client, menu_setup):
+        mock_run.return_value = ParsedOrder(
             items=[
                 ParsedOrderItem(
                     menu_item_id=99999,  # Doesn't exist

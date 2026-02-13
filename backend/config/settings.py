@@ -154,3 +154,5 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # LLM
 # ---------------------------------------------------------------------------
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
+LLM_MODEL = config("LLM_MODEL", default="")

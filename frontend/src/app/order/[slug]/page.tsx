@@ -9,6 +9,8 @@ import { InputStep } from "./components/InputStep";
 import { LoadingStep } from "./components/LoadingStep";
 import { ConfirmationStep } from "./components/ConfirmationStep";
 import { SubmittedStep } from "./components/SubmittedStep";
+import { MenuModal } from "./components/MenuModal";
+import type { MenuCategory } from "@/types";
 
 export default function OrderPage() {
   const params = useParams<{ slug: string }>();
@@ -16,6 +18,7 @@ export default function OrderPage() {
   const step = useOrderStore((s) => s.step);
   const reset = useOrderStore((s) => s.reset);
   const [restaurantName, setRestaurantName] = useState("");
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -24,6 +27,7 @@ export default function OrderPage() {
     fetchMenu(slug)
       .then((menu) => {
         setRestaurantName(menu.restaurant_name);
+        setCategories(menu.categories);
         setLoading(false);
       })
       .catch(() => {
@@ -50,6 +54,9 @@ export default function OrderPage() {
 
   return (
     <main className="min-h-screen bg-background">
+      <div className="fixed top-4 right-4 z-40">
+        <MenuModal categories={categories} />
+      </div>
       {step === "welcome" && <WelcomeStep restaurantName={restaurantName} />}
       {step === "input" && <InputStep slug={slug} />}
       {step === "loading" && <LoadingStep />}

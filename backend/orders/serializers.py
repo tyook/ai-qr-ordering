@@ -4,7 +4,7 @@ from orders.models import Order, OrderItem
 
 class ParseInputSerializer(serializers.Serializer):
     raw_input = serializers.CharField(max_length=2000)
-    table_identifier = serializers.CharField(max_length=50, required=False, default="")
+    table_identifier = serializers.CharField(max_length=50, required=False, default="", allow_blank=True)
 
 
 class ConfirmOrderItemSerializer(serializers.Serializer):
@@ -14,13 +14,13 @@ class ConfirmOrderItemSerializer(serializers.Serializer):
     modifier_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
     )
-    special_requests = serializers.CharField(required=False, default="")
+    special_requests = serializers.CharField(required=False, default="", allow_blank=True)
 
 
 class ConfirmOrderSerializer(serializers.Serializer):
     items = ConfirmOrderItemSerializer(many=True)
     raw_input = serializers.CharField()
-    table_identifier = serializers.CharField(required=False, default="")
+    table_identifier = serializers.CharField(required=False, default="", allow_blank=True)
     language = serializers.CharField(required=False, default="en")
 
 

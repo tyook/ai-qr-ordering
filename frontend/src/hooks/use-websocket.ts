@@ -6,18 +6,22 @@ interface UseWebSocketOptions {
   url: string;
   onMessage: (data: unknown) => void;
   reconnectInterval?: number;
+  /** When false the socket will not connect. Defaults to true. */
+  enabled?: boolean;
 }
 
 export function useWebSocket({
   url,
   onMessage,
   reconnectInterval = 3000,
+  enabled = true,
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
   const connect = useCallback(() => {
+    if (!enabled) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const ws = new WebSocket(url);
@@ -37,7 +41,9 @@ export function useWebSocket({
 
     ws.onclose = () => {
       setIsConnected(false);
-      reconnectTimeoutRef.current = setTimeout(connect, reconnectInterval);
+      if (enabled) {
+        reconnectTimeoutRef.current = setTimeout(connect, reconnectInterval);
+      }
     };
 
     ws.onerror = () => {
@@ -45,7 +51,7 @@ export function useWebSocket({
     };
 
     wsRef.current = ws;
-  }, [url, onMessage, reconnectInterval]);
+  }, [url, onMessage, reconnectInterval, enabled]);
 
   useEffect(() => {
     connect();
