@@ -68,6 +68,7 @@ class ParseOrderView(APIView):
 
 
 class ConfirmOrderView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request, slug):
@@ -142,10 +143,27 @@ class ConfirmOrderView(APIView):
         tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
         grand_total = subtotal + tax_amount
 
+        # Check for customer auth and auto-link
+        customer = None
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                from rest_framework_simplejwt.tokens import UntypedToken
+                from customers.models import Customer
+                token_str = auth_header.split(" ", 1)[1]
+                token = UntypedToken(token_str)
+                if token.get("token_type") == "customer_access":
+                    customer = Customer.objects.get(id=token["customer_id"])
+            except Exception:
+                pass  # Not a customer token or invalid — that's fine
+
         # Create order
         order = Order.objects.create(
             restaurant=restaurant,
             table_identifier=data.get("table_identifier") or None,
+            customer=customer,
+            customer_name=data.get("customer_name", ""),
+            customer_phone=data.get("customer_phone", ""),
             status="confirmed",
             raw_input=data["raw_input"],
             parsed_json=request.data,

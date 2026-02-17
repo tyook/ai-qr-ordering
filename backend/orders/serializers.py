@@ -22,6 +22,8 @@ class ConfirmOrderSerializer(serializers.Serializer):
     raw_input = serializers.CharField()
     table_identifier = serializers.CharField(required=False, default="", allow_blank=True)
     language = serializers.CharField(required=False, default="en")
+    customer_name = serializers.CharField(max_length=255, required=False, default="")
+    customer_phone = serializers.CharField(max_length=20, required=False, default="", allow_blank=True)
 
 
 class OrderItemResponseSerializer(serializers.ModelSerializer):
@@ -46,6 +48,7 @@ class OrderResponseSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             "id", "status", "table_identifier",
+            "customer_name", "customer_phone",
             "subtotal", "tax_rate", "tax_amount", "total_price",
             "created_at", "items",
         ]

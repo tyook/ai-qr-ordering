@@ -16,6 +16,12 @@ class Order(models.Model):
         Restaurant, on_delete=models.CASCADE, related_name="orders"
     )
     table_identifier = models.CharField(max_length=50, blank=True, null=True)
+    customer = models.ForeignKey(
+        "customers.Customer", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="orders",
+    )
+    customer_name = models.CharField(max_length=255, blank=True, default="")
+    customer_phone = models.CharField(max_length=20, blank=True, default="")
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.PENDING
     )

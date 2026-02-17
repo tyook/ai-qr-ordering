@@ -15,6 +15,9 @@ class OrderFactory(factory.django.DjangoModelFactory):
     total_price = factory.Faker(
         "pydecimal", left_digits=2, right_digits=2, positive=True
     )
+    customer = None
+    customer_name = ""
+    customer_phone = ""
 
 
 class OrderItemFactory(factory.django.DjangoModelFactory):
