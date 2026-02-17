@@ -93,3 +93,31 @@ export interface OrderResponse {
     special_requests: string;
   }[];
 }
+
+// Customer types
+export interface CustomerProfile {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  dietary_preferences: string[];
+  allergies: string[];
+  preferred_language: string;
+  auth_provider: string;
+  created_at: string;
+}
+
+export interface CustomerAuthResponse {
+  customer: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  access: string;
+  refresh: string;
+}
+
+export interface CustomerOrderHistoryItem extends OrderResponse {
+  restaurant_name: string;
+  restaurant_slug: string;
+}

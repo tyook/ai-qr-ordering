@@ -87,6 +87,9 @@ import type {
   ParsedOrderResponse,
   ConfirmOrderItem,
   OrderResponse,
+  CustomerAuthResponse,
+  CustomerProfile,
+  CustomerOrderHistoryItem,
 } from "@/types";
 
 export async function fetchMenu(slug: string): Promise<PublicMenu> {
@@ -126,5 +129,99 @@ export async function fetchOrderStatus(
   orderId: string
 ): Promise<OrderResponse> {
   return apiFetch<OrderResponse>(`/api/order/${slug}/status/${orderId}/`);
+}
+
+const CUSTOMER_TOKEN_KEY = "customer_access_token";
+const CUSTOMER_REFRESH_KEY = "customer_refresh_token";
+
+export async function customerApiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  _isRetry = false
+): Promise<T> {
+  const url = `${API_URL}${path}`;
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  const token = typeof window !== "undefined"
+    ? localStorage.getItem(CUSTOMER_TOKEN_KEY)
+    : null;
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401 && !_isRetry && typeof window !== "undefined") {
+    // Try refresh
+    const refreshToken = localStorage.getItem(CUSTOMER_REFRESH_KEY);
+    if (refreshToken) {
+      try {
+        const refreshResp = await fetch(`${API_URL}/api/customer/auth/refresh/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh: refreshToken }),
+        });
+        if (refreshResp.ok) {
+          const data = await refreshResp.json();
+          localStorage.setItem(CUSTOMER_TOKEN_KEY, data.access);
+          // Retry
+          return customerApiFetch<T>(path, options, true);
+        }
+      } catch {}
+    }
+    // Clear auth
+    localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+    localStorage.removeItem(CUSTOMER_REFRESH_KEY);
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || error.email?.[0] || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function customerRegister(data: {
+  email: string;
+  password: string;
+  name: string;
+  phone?: string;
+  link_order_id?: string;
+}): Promise<CustomerAuthResponse> {
+  return customerApiFetch<CustomerAuthResponse>("/api/customer/auth/register/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function customerLogin(
+  email: string,
+  password: string,
+): Promise<CustomerAuthResponse> {
+  return customerApiFetch<CustomerAuthResponse>("/api/customer/auth/login/", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function fetchCustomerProfile(): Promise<CustomerProfile> {
+  return customerApiFetch<CustomerProfile>("/api/customer/profile/");
+}
+
+export async function updateCustomerProfile(
+  data: Partial<CustomerProfile>,
+): Promise<CustomerProfile> {
+  return customerApiFetch<CustomerProfile>("/api/customer/profile/", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchCustomerOrders(): Promise<CustomerOrderHistoryItem[]> {
+  return customerApiFetch<CustomerOrderHistoryItem[]>("/api/customer/orders/");
 }
 
