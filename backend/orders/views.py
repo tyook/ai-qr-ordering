@@ -313,8 +313,14 @@ class CreatePaymentView(APIView):
             order_item.modifiers.set(item_data["modifiers"])
 
         # Create Stripe PaymentIntent
+        if not settings.STRIPE_SECRET_KEY:
+            order.delete()
+            return Response(
+                {"detail": "Payment system not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         stripe.api_key = settings.STRIPE_SECRET_KEY
-        amount_cents = int(grand_total * 100)
+        amount_cents = int((grand_total * Decimal("100")).quantize(Decimal("1")))
 
         try:
             intent = stripe.PaymentIntent.create(
@@ -391,7 +397,7 @@ class StripeWebhookView(APIView):
                 order.save(update_fields=["status", "payment_status"])
                 broadcast_order_to_kitchen(order)
 
-        elif event["type"] == "payment_intent.payment_failed":
+        elif event["type"] in ("payment_intent.payment_failed", "payment_intent.canceled"):
             intent = event["data"]["object"]
             try:
                 order = Order.objects.get(
