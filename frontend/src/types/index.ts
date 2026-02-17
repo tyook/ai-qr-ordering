@@ -94,6 +94,10 @@ export interface OrderResponse {
   }[];
 }
 
+export interface CreatePaymentResponse extends OrderResponse {
+  client_secret: string;
+}
+
 // Customer types
 export interface CustomerProfile {
   id: string;

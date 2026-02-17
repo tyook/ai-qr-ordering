@@ -87,6 +87,7 @@ import type {
   ParsedOrderResponse,
   ConfirmOrderItem,
   OrderResponse,
+  CreatePaymentResponse,
   CustomerAuthResponse,
   CustomerProfile,
   CustomerOrderHistoryItem,
@@ -116,6 +117,28 @@ export async function confirmOrder(
   customerPhone?: string
 ): Promise<OrderResponse> {
   return apiFetch<OrderResponse>(`/api/order/${slug}/confirm/`, {
+    method: "POST",
+    body: JSON.stringify({
+      items,
+      raw_input: rawInput,
+      table_identifier: tableIdentifier,
+      language,
+      customer_name: customerName || "",
+      customer_phone: customerPhone || "",
+    }),
+  });
+}
+
+export async function createPayment(
+  slug: string,
+  items: ConfirmOrderItem[],
+  rawInput: string,
+  tableIdentifier: string,
+  language: string,
+  customerName?: string,
+  customerPhone?: string
+): Promise<CreatePaymentResponse> {
+  return apiFetch<CreatePaymentResponse>(`/api/order/${slug}/create-payment/`, {
     method: "POST",
     body: JSON.stringify({
       items,
