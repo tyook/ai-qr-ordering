@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { Header } from "@/components/Header";
+import { ConditionalHeader } from "@/components/ConditionalHeader";
 import { QueryProvider } from "@/components/QueryProvider";
 
 const geistSans = localFont({
@@ -31,7 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <QueryProvider>
-          <Header />
+          <ConditionalHeader />
           {children}
         </QueryProvider>
       </body>
