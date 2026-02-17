@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 import { useCustomerAuthStore } from "@/stores/customer-auth-store";
 
 export default function CustomerRegisterPage() {
@@ -84,6 +86,21 @@ export default function CustomerRegisterPage() {
             {loading ? "Creating account..." : "Create Account"}
           </Button>
         </form>
+
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <Separator className="w-full" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+
+        <SocialLoginButtons
+          onSuccess={() => router.push("/account/orders")}
+          onError={(err) => setError(err)}
+        />
+
         <p className="text-sm text-center mt-4 text-muted-foreground">
           Already have an account?{" "}
           <Link href="/account/login" className="text-primary underline">

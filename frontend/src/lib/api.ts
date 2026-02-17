@@ -229,3 +229,24 @@ export async function fetchCustomerOrders(): Promise<CustomerOrderHistoryItem[]>
   return customerApiFetch<CustomerOrderHistoryItem[]>("/api/customer/orders/");
 }
 
+export async function customerGoogleAuth(
+  token: string,
+  linkOrderId?: string,
+): Promise<CustomerAuthResponse> {
+  return customerApiFetch<CustomerAuthResponse>("/api/customer/auth/google/", {
+    method: "POST",
+    body: JSON.stringify({ token, link_order_id: linkOrderId }),
+  });
+}
+
+export async function customerAppleAuth(
+  token: string,
+  name?: string,
+  linkOrderId?: string,
+): Promise<CustomerAuthResponse> {
+  return customerApiFetch<CustomerAuthResponse>("/api/customer/auth/apple/", {
+    method: "POST",
+    body: JSON.stringify({ token, name, link_order_id: linkOrderId }),
+  });
+}
+
