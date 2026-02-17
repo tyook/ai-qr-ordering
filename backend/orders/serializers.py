@@ -50,5 +50,6 @@ class OrderResponseSerializer(serializers.ModelSerializer):
             "id", "status", "table_identifier",
             "customer_name", "customer_phone",
             "subtotal", "tax_rate", "tax_amount", "total_price",
+            "payment_status", "stripe_payment_intent_id",
             "created_at", "items",
         ]
