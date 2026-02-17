@@ -10,50 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiFetch } from "@/lib/api";
-
-interface Variant {
-  id: number;
-  label: string;
-  price: string;
-  is_default: boolean;
-}
-
-interface Modifier {
-  id: number;
-  name: string;
-  price_adjustment: string;
-}
-
-interface MenuItemFull {
-  id: number;
-  name: string;
-  description: string;
-  is_active: boolean;
-  sort_order: number;
-  variants: Variant[];
-  modifiers: Modifier[];
-}
-
-interface Category {
-  id: number;
-  name: string;
-  sort_order: number;
-  is_active: boolean;
-  items: MenuItemFull[];
-}
-
-interface FullMenu {
-  restaurant_name: string;
-  categories: Category[];
-}
+import {
+  useAdminMenu,
+  useAddCategory,
+  useAddMenuItem,
+  useDeactivateMenuItem,
+} from "@/hooks/use-admin-menu";
 
 export default function MenuManagementPage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const [menu, setMenu] = useState<FullMenu | null>(null);
-  const [loading, setLoading] = useState(true);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showAddItem, setShowAddItem] = useState<number | null>(null);
   const [newItem, setNewItem] = useState({
@@ -63,45 +30,33 @@ export default function MenuManagementPage() {
     variantPrice: "",
   });
 
-  const loadMenu = async () => {
-    try {
-      const data = await apiFetch<FullMenu>(
-        `/api/restaurants/${params.slug}/menu/`
-      );
-      setMenu(data);
-    } catch {
-      // Handle error
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: menu, isLoading } = useAdminMenu(params.slug, isAuthenticated);
+  const addCategory = useAddCategory(params.slug);
+  const addMenuItem = useAddMenuItem(params.slug);
+  const deactivateMenuItem = useDeactivateMenuItem(params.slug);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/admin/login");
-      return;
     }
-    loadMenu();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, router]);
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    await apiFetch(`/api/restaurants/${params.slug}/categories/`, {
-      method: "POST",
-      body: JSON.stringify({
+    addCategory.mutate(
+      {
         name: newCategoryName,
         sort_order: (menu?.categories.length || 0) + 1,
-      }),
-    });
-    setNewCategoryName("");
-    loadMenu();
+      },
+      {
+        onSuccess: () => setNewCategoryName(""),
+      }
+    );
   };
 
-  const handleAddItem = async (categoryId: number) => {
-    await apiFetch(`/api/restaurants/${params.slug}/items/`, {
-      method: "POST",
-      body: JSON.stringify({
+  const handleAddItem = (categoryId: number) => {
+    addMenuItem.mutate(
+      {
         category_id: categoryId,
         name: newItem.name,
         description: newItem.description,
@@ -114,21 +69,26 @@ export default function MenuManagementPage() {
           },
         ],
         modifiers: [],
-      }),
-    });
-    setShowAddItem(null);
-    setNewItem({ name: "", description: "", variantLabel: "Regular", variantPrice: "" });
-    loadMenu();
+      },
+      {
+        onSuccess: () => {
+          setShowAddItem(null);
+          setNewItem({
+            name: "",
+            description: "",
+            variantLabel: "Regular",
+            variantPrice: "",
+          });
+        },
+      }
+    );
   };
 
-  const handleDeactivateItem = async (itemId: number) => {
-    await apiFetch(`/api/restaurants/${params.slug}/items/${itemId}/`, {
-      method: "DELETE",
-    });
-    loadMenu();
+  const handleDeactivateItem = (itemId: number) => {
+    deactivateMenuItem.mutate(itemId);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -162,7 +122,9 @@ export default function MenuManagementPage() {
               placeholder="New category name (e.g. Appetizers)"
               required
             />
-            <Button type="submit">Add Category</Button>
+            <Button type="submit" disabled={addCategory.isPending}>
+              {addCategory.isPending ? "Adding..." : "Add Category"}
+            </Button>
           </form>
         </Card>
 
@@ -277,8 +239,11 @@ export default function MenuManagementPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={() => handleAddItem(cat.id)}>
-                      Save Item
+                    <Button
+                      onClick={() => handleAddItem(cat.id)}
+                      disabled={addMenuItem.isPending}
+                    >
+                      {addMenuItem.isPending ? "Saving..." : "Save Item"}
                     </Button>
                     <Button
                       variant="outline"

@@ -8,11 +8,29 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRestaurant } from "@/hooks/use-restaurant";
+import { useUpdateTaxRate } from "@/hooks/use-update-tax-rate";
 
 export default function SettingsPage() {
   const params = useParams<{ slug: string }>();
   const [tableIds, setTableIds] = useState("");
   const [generatedTables, setGeneratedTables] = useState<string[]>([]);
+  const [taxRate, setTaxRate] = useState<string | null>(null);
+  const [taxMessage, setTaxMessage] = useState("");
+
+  const { data: restaurant } = useRestaurant(params.slug);
+  const updateTaxRate = useUpdateTaxRate(params.slug);
+
+  // Initialize local tax rate from fetched data
+  const displayTaxRate = taxRate ?? restaurant?.tax_rate ?? "";
+
+  const handleSaveTax = () => {
+    setTaxMessage("");
+    updateTaxRate.mutate(displayTaxRate, {
+      onSuccess: () => setTaxMessage("Saved"),
+      onError: () => setTaxMessage("Failed to save"),
+    });
+  };
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -41,6 +59,38 @@ export default function SettingsPage() {
           Back to dashboard
         </Link>
         <h1 className="text-2xl font-bold mb-6">Settings & QR Codes</h1>
+
+        {/* Tax Rate */}
+        <Card className="p-6 mb-6">
+          <h2 className="text-lg font-semibold mb-4">Tax Rate</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Set the sales tax percentage for this restaurant. This will be
+            applied to all orders.
+          </p>
+          <div className="flex items-end gap-2">
+            <div className="w-40">
+              <Label htmlFor="tax-rate">Rate (%)</Label>
+              <Input
+                id="tax-rate"
+                type="number"
+                step="0.001"
+                min="0"
+                max="99"
+                value={displayTaxRate}
+                onChange={(e) => setTaxRate(e.target.value)}
+                placeholder="0.000"
+              />
+            </div>
+            <Button onClick={handleSaveTax} disabled={updateTaxRate.isPending}>
+              {updateTaxRate.isPending ? "Saving..." : "Save"}
+            </Button>
+            {taxMessage && (
+              <span className="text-sm text-muted-foreground ml-2">
+                {taxMessage}
+              </span>
+            )}
+          </div>
+        </Card>
 
         {/* Counter QR (no table) */}
         <Card className="p-6 mb-6">

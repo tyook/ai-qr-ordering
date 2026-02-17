@@ -1,3 +1,16 @@
+// Restaurant types
+export interface Restaurant {
+  id: string;
+  name: string;
+  slug: string;
+  phone: string;
+  address: string;
+  homepage: string;
+  logo_url: string;
+  tax_rate: string;
+  created_at: string;
+}
+
 // Menu types
 export interface MenuItemModifier {
   id: number;
@@ -29,6 +42,7 @@ export interface MenuCategory {
 
 export interface PublicMenu {
   restaurant_name: string;
+  tax_rate: string;
   categories: MenuCategory[];
 }
 
@@ -65,6 +79,9 @@ export interface OrderResponse {
   id: string;
   status: string;
   table_identifier: string | null;
+  subtotal: string;
+  tax_rate: string;
+  tax_amount: string;
   total_price: string;
   created_at: string;
   items: {

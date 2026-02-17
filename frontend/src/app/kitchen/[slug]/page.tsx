@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useKitchenStore } from "@/stores/kitchen-store";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiFetch } from "@/lib/api";
+import { useMyRestaurants } from "@/hooks/use-my-restaurants";
+import { useAdvanceOrder } from "@/hooks/use-advance-order";
 import { OrderColumn } from "./components/OrderColumn";
 import { Badge } from "@/components/ui/badge";
 import type { OrderResponse } from "@/types";
@@ -18,11 +19,6 @@ const NEXT_STATUS: Record<string, string> = {
   ready: "completed",
 };
 
-interface Restaurant {
-  slug: string;
-  [key: string]: unknown;
-}
-
 export default function KitchenPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
@@ -30,7 +26,9 @@ export default function KitchenPage() {
   const { isAuthenticated } = useAuthStore();
   const { orders, addOrUpdateOrder } = useKitchenStore();
   const [authorized, setAuthorized] = useState(false);
-  const [checking, setChecking] = useState(true);
+
+  const { data: restaurants, isLoading: checking } = useMyRestaurants(isAuthenticated);
+  const advanceOrder = useAdvanceOrder();
 
   // Auth guard: verify user is owner/staff of this restaurant
   useEffect(() => {
@@ -39,22 +37,15 @@ export default function KitchenPage() {
       return;
     }
 
-    apiFetch<{ results: Restaurant[] }>("/api/restaurants/me/")
-      .then((data) => {
-        const hasAccess = data.results.some((r) => r.slug === slug);
-        if (!hasAccess) {
-          router.replace("/");
-        } else {
-          setAuthorized(true);
-        }
-      })
-      .catch(() => {
+    if (!checking && restaurants) {
+      const hasAccess = restaurants.some((r) => r.slug === slug);
+      if (!hasAccess) {
         router.replace("/");
-      })
-      .finally(() => {
-        setChecking(false);
-      });
-  }, [isAuthenticated, slug, router]);
+      } else {
+        setAuthorized(true);
+      }
+    }
+  }, [isAuthenticated, checking, restaurants, slug, router]);
 
   const handleMessage = useCallback(
     (data: unknown) => {
@@ -72,25 +63,21 @@ export default function KitchenPage() {
     enabled: authorized,
   });
 
-  const handleAdvance = async (orderId: string) => {
+  const handleAdvance = (orderId: string) => {
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
     const nextStatus = NEXT_STATUS[order.status];
     if (!nextStatus) return;
 
-    try {
-      const updated = await apiFetch<OrderResponse>(
-        `/api/kitchen/orders/${orderId}/`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ status: nextStatus }),
-        }
-      );
-      addOrUpdateOrder(updated);
-    } catch {
-      // Handle error silently for now
-    }
+    advanceOrder.mutate(
+      { orderId, nextStatus },
+      {
+        onSuccess: (updated) => {
+          addOrUpdateOrder(updated);
+        },
+      }
+    );
   };
 
   if (checking || !authorized) {

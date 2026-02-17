@@ -35,6 +35,7 @@ class PublicMenuView(APIView):
         return Response(
             {
                 "restaurant_name": restaurant.name,
+                "tax_rate": str(restaurant.tax_rate),
                 "categories": PublicMenuCategorySerializer(categories, many=True).data,
             }
         )
@@ -135,6 +136,12 @@ class ConfirmOrderView(APIView):
                 }
             )
 
+        # Calculate tax
+        subtotal = total_price
+        tax_rate = restaurant.tax_rate
+        tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
+        grand_total = subtotal + tax_amount
+
         # Create order
         order = Order.objects.create(
             restaurant=restaurant,
@@ -143,7 +150,10 @@ class ConfirmOrderView(APIView):
             raw_input=data["raw_input"],
             parsed_json=request.data,
             language_detected=data.get("language", "en"),
-            total_price=total_price,
+            subtotal=subtotal,
+            tax_rate=tax_rate,
+            tax_amount=tax_amount,
+            total_price=grand_total,
         )
 
         for item_data in validated_items:

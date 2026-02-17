@@ -4,29 +4,24 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrderStore } from "@/stores/order-store";
+import { usePreferencesStore } from "@/stores/preferences-store";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
-import { parseOrder } from "@/lib/api";
-
-const SPEECH_LANGUAGES = [
-  { code: "en-US", label: "English" },
-  { code: "ko-KR", label: "한국어" },
-  { code: "ja-JP", label: "日本語" },
-  { code: "zh-CN", label: "中文" },
-  { code: "es-ES", label: "Español" },
-  { code: "vi-VN", label: "Tiếng Việt" },
-] as const;
+import { useParseOrder } from "@/hooks/use-parse-order";
+import { SPEECH_LANGUAGES } from "@/lib/constants";
 
 interface InputStepProps {
   slug: string;
 }
 
 export function InputStep({ slug }: InputStepProps) {
-  const { setStep, setRawInput, setParsedResult, setError, rawInput } =
-    useOrderStore();
+  const { setStep, setRawInput, rawInput } = useOrderStore();
+  const { preferredLanguage } = usePreferencesStore();
   const [input, setInput] = useState(rawInput);
-  const [speechLang, setSpeechLang] = useState("en-US");
+  const [speechLang, setSpeechLang] = useState(preferredLanguage);
   const { isListening, transcript, startListening, stopListening, isSupported } =
     useSpeechRecognition({ lang: speechLang || undefined });
+
+  const parseOrderMutation = useParseOrder(slug);
 
   const currentInput = isListening ? transcript : input;
 
@@ -37,14 +32,7 @@ export function InputStep({ slug }: InputStepProps) {
     setRawInput(text);
     setStep("loading");
 
-    try {
-      const result = await parseOrder(slug, text);
-      setParsedResult(result.items, result.total_price, result.language);
-      setStep("confirmation");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to parse order");
-      setStep("input");
-    }
+    parseOrderMutation.mutate(text);
   };
 
   const toggleVoice = () => {

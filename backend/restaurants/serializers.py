@@ -47,7 +47,7 @@ class LoginSerializer(serializers.Serializer):
 class RestaurantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
-        fields = ["id", "name", "slug", "created_at"]
+        fields = ["id", "name", "slug", "phone", "address", "homepage", "logo_url", "tax_rate", "created_at"]
         read_only_fields = ["id", "created_at"]
 
     def create(self, validated_data):

@@ -7,55 +7,57 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiFetch } from "@/lib/api";
-
-interface Restaurant {
-  id: string;
-  name: string;
-  slug: string;
-  created_at: string;
-}
+import { useMyRestaurants } from "@/hooks/use-my-restaurants";
+import { useCreateRestaurant } from "@/hooks/use-create-restaurant";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const { isAuthenticated, logout } = useAuthStore();
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [newPhone, setNewPhone] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [newHomepage, setNewHomepage] = useState("");
+  const [newLogoUrl, setNewLogoUrl] = useState("");
+
+  const { data: restaurants, isLoading } = useMyRestaurants(isAuthenticated);
+  const createRestaurant = useCreateRestaurant();
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/admin/login");
-      return;
     }
-    apiFetch<{ results: Restaurant[] }>("/api/restaurants/me/")
-      .then((data) => {
-        setRestaurants(data.results);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
   }, [isAuthenticated, router]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const restaurant = await apiFetch<Restaurant>("/api/restaurants/", {
-        method: "POST",
-        body: JSON.stringify({ name: newName, slug: newSlug }),
-      });
-      setRestaurants([...restaurants, restaurant]);
-      setShowCreate(false);
-      setNewName("");
-      setNewSlug("");
-    } catch {
-      // Handle error
-    }
+    createRestaurant.mutate(
+      {
+        name: newName,
+        slug: newSlug,
+        phone: newPhone || undefined,
+        address: newAddress || undefined,
+        homepage: newHomepage || undefined,
+        logo_url: newLogoUrl || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowCreate(false);
+          setNewName("");
+          setNewSlug("");
+          setNewPhone("");
+          setNewAddress("");
+          setNewHomepage("");
+          setNewLogoUrl("");
+        },
+      }
+    );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -107,13 +109,50 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
-              <Button type="submit">Create</Button>
+              <div>
+                <Label>Phone Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+              <div>
+                <Label>Address <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Textarea
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  placeholder="123 Main St, City, State 12345"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label>Homepage URL <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  value={newHomepage}
+                  onChange={(e) => setNewHomepage(e.target.value)}
+                  placeholder="https://www.mypizzaplace.com"
+                  type="url"
+                />
+              </div>
+              <div>
+                <Label>Logo URL <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  value={newLogoUrl}
+                  onChange={(e) => setNewLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  type="url"
+                />
+              </div>
+              <Button type="submit" disabled={createRestaurant.isPending}>
+                {createRestaurant.isPending ? "Creating..." : "Create"}
+              </Button>
             </form>
           </Card>
         )}
 
         <div className="grid gap-4">
-          {restaurants.map((r) => (
+          {restaurants?.map((r) => (
             <Card key={r.id} className="p-6">
               <div className="flex justify-between items-center">
                 <div>
@@ -137,7 +176,7 @@ export default function AdminDashboard() {
               </div>
             </Card>
           ))}
-          {restaurants.length === 0 && (
+          {(!restaurants || restaurants.length === 0) && (
             <p className="text-center text-muted-foreground py-12">
               No restaurants yet. Create one to get started.
             </p>

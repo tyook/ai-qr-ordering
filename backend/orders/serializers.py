@@ -45,6 +45,7 @@ class OrderResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            "id", "status", "table_identifier", "total_price",
+            "id", "status", "table_identifier",
+            "subtotal", "tax_rate", "tax_amount", "total_price",
             "created_at", "items",
         ]

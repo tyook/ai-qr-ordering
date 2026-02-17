@@ -31,6 +31,14 @@ class Restaurant(models.Model):
     slug = models.SlugField(unique=True, max_length=100)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="owned_restaurants")
     currency = models.CharField(max_length=3, default="USD", help_text="ISO 4217 currency code")
+    phone = models.CharField(max_length=20, blank=True, default="")
+    address = models.TextField(blank=True, default="")
+    homepage = models.URLField(blank=True, default="")
+    logo_url = models.URLField(blank=True, default="")
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=3, default=0,
+        help_text="Tax rate as a percentage (e.g. 8.875 for 8.875%)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -22,6 +22,12 @@ class Order(models.Model):
     raw_input = models.TextField()
     parsed_json = models.JSONField(default=dict, blank=True)
     language_detected = models.CharField(max_length=10, blank=True, default="")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=3, default=0,
+        help_text="Tax rate snapshot at time of order (percentage)",
+    )
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
