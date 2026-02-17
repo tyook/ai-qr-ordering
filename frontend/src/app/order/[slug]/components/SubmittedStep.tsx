@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 import { useOrderStore } from "@/stores/order-store";
 import { useCustomerAuthStore } from "@/stores/customer-auth-store";
 
@@ -66,12 +68,25 @@ export function SubmittedStep() {
           </p>
 
           {!showRegister ? (
-            <div className="flex gap-2">
-              <Button onClick={() => setShowRegister(true)} className="flex-1">
-                Create Account
-              </Button>
-              <Button variant="outline" onClick={() => setShowRegister(false)}>
-                Skip
+            <div className="space-y-3">
+              <SocialLoginButtons
+                linkOrderId={orderId || undefined}
+                onSuccess={() => setRegisterSuccess(true)}
+                onError={(err) => setRegisterError(err)}
+              />
+              {registerError && (
+                <p className="text-destructive text-sm">{registerError}</p>
+              )}
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => setShowRegister(true)}>
+                Sign up with email
               </Button>
             </div>
           ) : (

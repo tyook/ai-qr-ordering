@@ -21,7 +21,10 @@ dependencies = [
     "psycopg2-binary (==2.9.10)",
     "pillow (==11.1.0)",
     "python-decouple (==3.8)",
-    "stripe (>=14.3.0,<15.0.0)"
+    "stripe (>=14.3.0,<15.0.0)",
+    "google-auth (>=2.48.0,<3.0.0)",
+    "pyjwt (>=2.11.0,<3.0.0)",
+    "cryptography (>=46.0.5,<47.0.0)"
 ]
 
 

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
 import { ConditionalHeader } from "@/components/ConditionalHeader";
 import { QueryProvider } from "@/components/QueryProvider";
+import { AppleAuthInit } from "@/components/AppleAuthInit";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -30,8 +32,17 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="lazyOnload"
+        />
+        <Script
+          src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
+          strategy="lazyOnload"
+        />
         <QueryProvider>
           <ConditionalHeader />
+          <AppleAuthInit />
           {children}
         </QueryProvider>
       </body>
