@@ -1,7 +1,7 @@
 from django.urls import path
 from orders.views import (
     PublicMenuView, ParseOrderView, ConfirmOrderView, OrderStatusView,
-    KitchenOrderUpdateView, CreatePaymentView,
+    KitchenOrderUpdateView, CreatePaymentView, StripeWebhookView,
 )
 
 urlpatterns = [
@@ -19,4 +19,5 @@ urlpatterns = [
         KitchenOrderUpdateView.as_view(),
         name="kitchen-order-update",
     ),
+    path("webhooks/stripe/", StripeWebhookView.as_view(), name="stripe-webhook"),
 ]

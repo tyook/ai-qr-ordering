@@ -358,7 +358,55 @@ class OrderStatusView(APIView):
         return Response(OrderResponseSerializer(order).data)
 
 
+class StripeWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        payload = request.body
+        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
+
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET,
+            )
+        except (ValueError, stripe.error.SignatureVerificationError):
+            return Response(
+                {"detail": "Invalid webhook signature."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if event["type"] == "payment_intent.succeeded":
+            intent = event["data"]["object"]
+            try:
+                order = Order.objects.get(
+                    stripe_payment_intent_id=intent["id"]
+                )
+            except Order.DoesNotExist:
+                return Response(status=status.HTTP_200_OK)
+
+            if order.payment_status != "paid":
+                order.status = "confirmed"
+                order.payment_status = "paid"
+                order.save(update_fields=["status", "payment_status"])
+                broadcast_order_to_kitchen(order)
+
+        elif event["type"] == "payment_intent.payment_failed":
+            intent = event["data"]["object"]
+            try:
+                order = Order.objects.get(
+                    stripe_payment_intent_id=intent["id"]
+                )
+                order.payment_status = "failed"
+                order.save(update_fields=["payment_status"])
+            except Order.DoesNotExist:
+                pass
+
+        return Response(status=status.HTTP_200_OK)
+
+
 VALID_TRANSITIONS = {
+    "pending_payment": ["confirmed"],
     "confirmed": ["preparing"],
     "preparing": ["ready"],
     "ready": ["completed"],
