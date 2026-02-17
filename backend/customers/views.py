@@ -12,6 +12,8 @@ from customers.serializers import (
     CustomerLoginSerializer,
     CustomerProfileSerializer,
 )
+from orders.serializers import OrderResponseSerializer
+from orders.models import Order
 
 
 class CustomerAuthMixin:
@@ -114,3 +116,27 @@ class CustomerProfileView(CustomerAuthMixin, APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class CustomerOrderHistoryView(CustomerAuthMixin, APIView):
+    """GET /api/customer/orders/ — list customer's past orders."""
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        customer = self.get_customer(request)
+        if not customer:
+            return Response(
+                {"detail": "Authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        orders = Order.objects.filter(customer=customer).select_related(
+            "restaurant"
+        ).prefetch_related("items__menu_item", "items__variant")
+        data = []
+        for order in orders:
+            order_data = OrderResponseSerializer(order).data
+            order_data["restaurant_name"] = order.restaurant.name
+            order_data["restaurant_slug"] = order.restaurant.slug
+            data.append(order_data)
+        return Response(data)

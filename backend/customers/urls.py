@@ -4,6 +4,7 @@ from customers.views import (
     CustomerLoginView,
     CustomerTokenRefreshView,
     CustomerProfileView,
+    CustomerOrderHistoryView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path("auth/login/", CustomerLoginView.as_view(), name="customer-login"),
     path("auth/refresh/", CustomerTokenRefreshView.as_view(), name="customer-token-refresh"),
     path("profile/", CustomerProfileView.as_view(), name="customer-profile"),
+    path("orders/", CustomerOrderHistoryView.as_view(), name="customer-orders"),
 ]
