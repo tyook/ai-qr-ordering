@@ -12,6 +12,7 @@ import { WelcomeStep } from "./components/WelcomeStep";
 import { InputStep } from "./components/InputStep";
 import { LoadingStep } from "./components/LoadingStep";
 import { ConfirmationStep } from "./components/ConfirmationStep";
+import { PaymentStep } from "./components/PaymentStep";
 import { SubmittedStep } from "./components/SubmittedStep";
 import { MenuModal } from "./components/MenuModal";
 
@@ -63,6 +64,7 @@ export default function OrderPage() {
       {step === "input" && <InputStep slug={slug} />}
       {step === "loading" && <LoadingStep />}
       {step === "confirmation" && <ConfirmationStep slug={slug} taxRate={menu.tax_rate} />}
+      {step === "payment" && <PaymentStep taxRate={menu.tax_rate} />}
       {step === "submitted" && <SubmittedStep />}
 
       <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} />
