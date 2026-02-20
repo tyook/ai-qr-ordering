@@ -470,6 +470,83 @@ class StripeWebhookView(APIView):
             except Order.DoesNotExist:
                 pass
 
+        elif event["type"] == "checkout.session.completed":
+            session = event["data"]["object"]
+            if session.get("mode") == "subscription":
+                from restaurants.models import Subscription
+                restaurant_id = session.get("metadata", {}).get("restaurant_id")
+                plan = session.get("metadata", {}).get("plan", "starter")
+                if restaurant_id:
+                    try:
+                        sub = Subscription.objects.get(restaurant_id=restaurant_id)
+                        sub.stripe_subscription_id = session["subscription"]
+                        sub.stripe_customer_id = session.get("customer", sub.stripe_customer_id)
+                        sub.plan = plan
+                        sub.status = "active"
+                        sub.order_count = 0  # Reset for new billing period
+                        sub.save(update_fields=[
+                            "stripe_subscription_id", "stripe_customer_id",
+                            "plan", "status", "order_count",
+                        ])
+                    except Subscription.DoesNotExist:
+                        pass
+
+        elif event["type"] == "customer.subscription.updated":
+            sub_data = event["data"]["object"]
+            from restaurants.models import Subscription
+            try:
+                sub = Subscription.objects.get(
+                    stripe_subscription_id=sub_data["id"]
+                )
+                sub.status = sub_data["status"]
+                sub.cancel_at_period_end = sub_data.get("cancel_at_period_end", False)
+
+                from datetime import datetime, timezone as tz
+                if sub_data.get("current_period_start"):
+                    sub.current_period_start = datetime.fromtimestamp(
+                        sub_data["current_period_start"], tz=tz.utc
+                    )
+                if sub_data.get("current_period_end"):
+                    sub.current_period_end = datetime.fromtimestamp(
+                        sub_data["current_period_end"], tz=tz.utc
+                    )
+
+                # Update plan from metadata if present
+                plan = sub_data.get("metadata", {}).get("plan")
+                if plan and plan in ("starter", "growth", "pro"):
+                    sub.plan = plan
+
+                sub.save()
+            except Subscription.DoesNotExist:
+                pass
+
+        elif event["type"] == "customer.subscription.deleted":
+            sub_data = event["data"]["object"]
+            from restaurants.models import Subscription
+            try:
+                sub = Subscription.objects.get(
+                    stripe_subscription_id=sub_data["id"]
+                )
+                sub.status = "canceled"
+                sub.save(update_fields=["status"])
+            except Subscription.DoesNotExist:
+                pass
+
+        elif event["type"] == "invoice.paid":
+            # Reset order count at start of new billing period
+            invoice = event["data"]["object"]
+            subscription_id = invoice.get("subscription")
+            if subscription_id:
+                from restaurants.models import Subscription
+                try:
+                    sub = Subscription.objects.get(
+                        stripe_subscription_id=subscription_id
+                    )
+                    sub.order_count = 0
+                    sub.save(update_fields=["order_count"])
+                except Subscription.DoesNotExist:
+                    pass
+
         return Response(status=status.HTTP_200_OK)
 
 
