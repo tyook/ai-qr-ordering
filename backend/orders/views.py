@@ -322,16 +322,35 @@ class CreatePaymentView(APIView):
         stripe.api_key = settings.STRIPE_SECRET_KEY
         amount_cents = int((grand_total * Decimal("100")).quantize(Decimal("1")))
 
+        payment_method_id = data.get("payment_method_id")
+        save_card = data.get("save_card", False)
+
+        intent_params = {
+            "amount": amount_cents,
+            "currency": restaurant.currency.lower(),
+            "automatic_payment_methods": {"enabled": True},
+            "metadata": {
+                "order_id": str(order.id),
+                "restaurant_slug": restaurant.slug,
+            },
+        }
+
+        # If customer is logged in, attach Stripe Customer
+        if customer:
+            stripe_customer_id = customer.get_or_create_stripe_customer()
+            intent_params["customer"] = stripe_customer_id
+
+            if save_card:
+                intent_params["setup_future_usage"] = "on_session"
+
+        # If using a saved payment method, confirm immediately server-side
+        if payment_method_id and customer:
+            intent_params["payment_method"] = payment_method_id
+            intent_params["confirm"] = True
+            intent_params["return_url"] = data.get("return_url", "https://localhost")
+
         try:
-            intent = stripe.PaymentIntent.create(
-                amount=amount_cents,
-                currency=restaurant.currency.lower(),
-                automatic_payment_methods={"enabled": True},
-                metadata={
-                    "order_id": str(order.id),
-                    "restaurant_slug": restaurant.slug,
-                },
-            )
+            intent = stripe.PaymentIntent.create(**intent_params)
         except stripe.error.StripeError as e:
             order.delete()
             return Response(
@@ -340,10 +359,20 @@ class CreatePaymentView(APIView):
             )
 
         order.stripe_payment_intent_id = intent.id
-        order.save(update_fields=["stripe_payment_intent_id"])
+        if payment_method_id:
+            order.stripe_payment_method_id = payment_method_id
+        order.save(update_fields=["stripe_payment_intent_id", "stripe_payment_method_id"])
 
         response_data = OrderResponseSerializer(order).data
         response_data["client_secret"] = intent.client_secret
+
+        # If payment was confirmed server-side and succeeded
+        if intent.status == "succeeded":
+            order.status = "confirmed"
+            order.payment_status = "paid"
+            order.save(update_fields=["status", "payment_status"])
+            response_data["status"] = "confirmed"
+            response_data["payment_status"] = "paid"
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 

@@ -24,6 +24,9 @@ class ConfirmOrderSerializer(serializers.Serializer):
     language = serializers.CharField(required=False, default="en")
     customer_name = serializers.CharField(max_length=255, required=False, default="")
     customer_phone = serializers.CharField(max_length=20, required=False, default="", allow_blank=True)
+    payment_method_id = serializers.CharField(required=False, default="", allow_blank=True)
+    save_card = serializers.BooleanField(required=False, default=False)
+    return_url = serializers.URLField(required=False, default="")
 
 
 class OrderItemResponseSerializer(serializers.ModelSerializer):
