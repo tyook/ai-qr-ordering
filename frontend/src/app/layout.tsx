@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { ConditionalHeader } from "@/components/ConditionalHeader";
 import { QueryProvider } from "@/components/QueryProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { AppleAuthInit } from "@/components/AppleAuthInit";
 
 const geistSans = localFont({
@@ -41,9 +42,11 @@ export default function RootLayout({
           strategy="lazyOnload"
         />
         <QueryProvider>
-          <ConditionalHeader />
-          <AppleAuthInit />
-          {children}
+          <ThemeProvider>
+            <ConditionalHeader />
+            <AppleAuthInit />
+            {children}
+          </ThemeProvider>
         </QueryProvider>
       </body>
     </html>

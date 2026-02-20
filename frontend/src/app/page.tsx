@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   UtensilsCrossed,
   Store,
-  TrendingDown,
+  Timer,
   DollarSign,
   Users,
   CreditCard,
@@ -10,6 +10,7 @@ import {
   Smartphone,
   Mic,
   Zap,
+  BadgePercent,
   Clock,
   Languages,
   Receipt,
@@ -59,11 +60,11 @@ function StepItem({
   return (
     <div className="flex flex-col items-center text-center gap-3">
       <div className="relative">
-        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
           {step}
         </span>
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 shadow-md">
-          <Icon className="h-7 w-7 text-amber-700 dark:text-amber-400" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent shadow-md">
+          <Icon className="h-7 w-7 text-accent-foreground" />
         </div>
       </div>
       <h3 className="text-lg font-semibold">{title}</h3>
@@ -93,7 +94,7 @@ export default function Home() {
 
         {/* logo + name */}
         <div className="animate-fade-in-up flex items-center gap-3 mb-6">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
             <UtensilsCrossed className="h-7 w-7 text-white" />
           </div>
           <span className="text-2xl font-bold tracking-tight">QR Order</span>
@@ -118,7 +119,7 @@ export default function Home() {
           <Button
             asChild
             size="lg"
-            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 border-0 h-12 px-8 text-base"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 border-0 h-12 px-8 text-base"
           >
             <Link href="/admin/register">
               <Store className="mr-2 h-4 w-4" />
@@ -160,38 +161,40 @@ export default function Home() {
           {/* two cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
             {/* OWNER CARD */}
-            <Card className="relative overflow-hidden border-amber-200/60 dark:border-amber-800/40 bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-card dark:from-amber-950/30 dark:via-orange-950/20 dark:to-card transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
+            <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-accent/80 via-accent/40 to-card transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
               {/* accent bar */}
               <div
                 aria-hidden
-                className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"
+                className="absolute top-0 left-0 right-0 h-1 bg-primary"
               />
 
               <CardHeader className="pt-8">
                 {/* icon cluster */}
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
-                    <Store className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent">
+                    <Store className="h-5 w-5 text-accent-foreground" />
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100/70 dark:bg-amber-900/30">
-                    <TrendingDown className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/70">
+                    <Timer className="h-4 w-4 text-accent-foreground/80" />
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100/70 dark:bg-amber-900/30">
-                    <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/70">
+                    <DollarSign className="h-4 w-4 text-accent-foreground/80" />
                   </div>
                 </div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                   For Restaurant Owners
                 </p>
                 <CardTitle className="text-2xl mt-1">
-                  Cut labor costs.
-                  <br />
-                  Not service quality.
+                  More covers. Less overhead.
                 </CardTitle>
               </CardHeader>
 
               <CardContent>
                 <ul className="space-y-4">
+                  <FeatureItem
+                    icon={Timer}
+                    text="Faster table turns — no waiting to order or flag down the check, so guests finish sooner and the next party sits faster"
+                  />
                   <FeatureItem
                     icon={Users}
                     text="Fewer servers needed — customers browse & order on their own phone"
@@ -210,7 +213,7 @@ export default function Home() {
               <CardFooter>
                 <Button
                   asChild
-                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-0 shadow-md shadow-amber-500/20"
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-md shadow-primary/20"
                 >
                   <Link href="/admin/register">
                     Start Free
@@ -253,6 +256,10 @@ export default function Home() {
 
               <CardContent>
                 <ul className="space-y-4">
+                  <FeatureItem
+                    icon={BadgePercent}
+                    text="No markup, ever — you pay the same prices as the in-store menu. We don't take a cut from your order like delivery apps do"
+                  />
                   <FeatureItem
                     icon={Clock}
                     text="Order before you arrive — skip the line and have food ready when you sit down"
@@ -337,10 +344,10 @@ export default function Home() {
           {/* connector lines between steps (desktop) */}
           <div className="hidden sm:flex justify-center -mt-[140px] mb-[90px] px-16">
             <div className="flex items-center w-full max-w-lg">
-              <div className="flex-1 border-t-2 border-dashed border-amber-300 dark:border-amber-700" />
-              <ArrowRight className="mx-2 h-4 w-4 text-amber-400 dark:text-amber-600 shrink-0" />
-              <div className="flex-1 border-t-2 border-dashed border-amber-300 dark:border-amber-700" />
-              <ArrowRight className="mx-2 h-4 w-4 text-amber-400 dark:text-amber-600 shrink-0" />
+              <div className="flex-1 border-t-2 border-dashed border-primary/30" />
+              <ArrowRight className="mx-2 h-4 w-4 text-primary/50 shrink-0" />
+              <div className="flex-1 border-t-2 border-dashed border-primary/30" />
+              <ArrowRight className="mx-2 h-4 w-4 text-primary/50 shrink-0" />
               <div className="flex-1" />
             </div>
           </div>
@@ -380,7 +387,7 @@ export default function Home() {
             <Button
               asChild
               size="lg"
-              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 border-0 h-12 px-8 text-base"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 border-0 h-12 px-8 text-base"
             >
               <Link href="/admin/register">
                 <Store className="mr-2 h-4 w-4" />
@@ -401,7 +408,7 @@ export default function Home() {
       <footer className="border-t px-6 py-8">
         <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <UtensilsCrossed className="h-4 w-4 text-white" />
             </div>
             <span className="font-semibold">QR Order</span>
