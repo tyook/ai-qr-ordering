@@ -55,3 +55,27 @@ class TestUpdateRestaurant:
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.data["name"] == "New Name"
+
+
+@pytest.mark.django_db
+class TestRestaurantSubscriptionInResponse:
+    def test_restaurant_detail_includes_subscription(self, api_client):
+        user = UserFactory()
+        restaurant = RestaurantFactory(owner=user)
+        from restaurants.models import Subscription
+        from django.utils import timezone
+        from datetime import timedelta
+        Subscription.objects.create(
+            restaurant=restaurant,
+            plan="growth",
+            status="active",
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+            order_count=42,
+        )
+        api_client.force_authenticate(user=user)
+        response = api_client.get(f"/api/restaurants/{restaurant.slug}/")
+        assert response.status_code == 200
+        assert "subscription" in response.data
+        assert response.data["subscription"]["plan"] == "growth"
+        assert response.data["subscription"]["order_count"] == 42

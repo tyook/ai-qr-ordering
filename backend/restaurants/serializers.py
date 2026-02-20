@@ -45,10 +45,20 @@ class LoginSerializer(serializers.Serializer):
 
 
 class RestaurantSerializer(serializers.ModelSerializer):
+    subscription = serializers.SerializerMethodField()
+
     class Meta:
         model = Restaurant
-        fields = ["id", "name", "slug", "phone", "address", "homepage", "logo_url", "tax_rate", "created_at"]
-        read_only_fields = ["id", "created_at"]
+        fields = ["id", "name", "slug", "phone", "address", "homepage", "logo_url", "tax_rate", "created_at", "subscription"]
+        read_only_fields = ["id", "created_at", "subscription"]
+
+    def get_subscription(self, obj):
+        try:
+            sub = obj.subscription
+        except Subscription.DoesNotExist:
+            return None
+        # Import here to avoid circular — SubscriptionSerializer is defined below
+        return SubscriptionSerializer(sub).data
 
     def create(self, validated_data):
         from django.utils import timezone
