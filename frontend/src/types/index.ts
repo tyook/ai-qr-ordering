@@ -1,3 +1,18 @@
+// Subscription types
+export interface Subscription {
+  plan: "starter" | "growth" | "pro";
+  plan_name: string;
+  status: "trialing" | "active" | "past_due" | "canceled" | "incomplete";
+  trial_end: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  order_count: number;
+  order_limit: number;
+  overage_count: number;
+  is_active: boolean;
+}
+
 // Restaurant types
 export interface Restaurant {
   id: string;
@@ -9,6 +24,7 @@ export interface Restaurant {
   logo_url: string;
   tax_rate: string;
   created_at: string;
+  subscription?: Subscription;
 }
 
 // Menu types

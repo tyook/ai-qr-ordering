@@ -92,6 +92,7 @@ import type {
   CustomerProfile,
   CustomerOrderHistoryItem,
   SavedPaymentMethod,
+  Subscription,
 } from "@/types";
 
 export async function fetchMenu(slug: string): Promise<PublicMenu> {
@@ -312,5 +313,47 @@ export async function deletePaymentMethod(pmId: string): Promise<void> {
   await customerApiFetch<void>(`/api/customer/payment-methods/${pmId}/`, {
     method: "DELETE",
   });
+}
+
+// Subscription API
+export async function fetchSubscription(slug: string): Promise<Subscription> {
+  return apiFetch<Subscription>(`/api/restaurants/${slug}/subscription/`);
+}
+
+export async function createCheckoutSession(
+  slug: string,
+  plan: string,
+  interval: "monthly" | "annual"
+): Promise<{ checkout_url: string }> {
+  return apiFetch<{ checkout_url: string }>(
+    `/api/restaurants/${slug}/subscription/checkout/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ plan, interval }),
+    }
+  );
+}
+
+export async function createBillingPortal(
+  slug: string
+): Promise<{ portal_url: string }> {
+  return apiFetch<{ portal_url: string }>(
+    `/api/restaurants/${slug}/subscription/portal/`,
+    { method: "POST" }
+  );
+}
+
+export async function cancelSubscription(slug: string): Promise<Subscription> {
+  return apiFetch<Subscription>(
+    `/api/restaurants/${slug}/subscription/cancel/`,
+    { method: "POST" }
+  );
+}
+
+export async function reactivateSubscription(slug: string): Promise<Subscription> {
+  return apiFetch<Subscription>(
+    `/api/restaurants/${slug}/subscription/reactivate/`,
+    { method: "POST" }
+  );
 }
 
