@@ -267,3 +267,85 @@ class CustomerOrderHistoryView(CustomerAuthMixin, APIView):
             order_data["restaurant_slug"] = order.restaurant.slug
             data.append(order_data)
         return Response(data)
+
+
+import stripe as stripe_lib
+
+class PaymentMethodsView(CustomerAuthMixin, APIView):
+    """GET: list saved payment methods. DELETE: detach a payment method."""
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        customer = self.get_customer(request)
+        if not customer:
+            return Response(
+                {"detail": "Authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if not customer.stripe_customer_id:
+            return Response([])
+
+        from django.conf import settings
+        stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+
+        try:
+            methods = stripe_lib.PaymentMethod.list(
+                customer=customer.stripe_customer_id,
+                type="card",
+            )
+        except stripe_lib.error.StripeError:
+            return Response([])
+
+        result = []
+        for pm in methods.data:
+            result.append({
+                "id": pm.id,
+                "brand": pm.card.brand,
+                "last4": pm.card.last4,
+                "exp_month": pm.card.exp_month,
+                "exp_year": pm.card.exp_year,
+            })
+
+        return Response(result)
+
+
+class PaymentMethodDetailView(CustomerAuthMixin, APIView):
+    """DELETE: detach a specific payment method."""
+    authentication_classes = []
+    permission_classes = []
+
+    def delete(self, request, pm_id):
+        customer = self.get_customer(request)
+        if not customer:
+            return Response(
+                {"detail": "Authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if not customer.stripe_customer_id:
+            return Response(
+                {"detail": "No payment methods found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from django.conf import settings
+        stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+
+        try:
+            # Verify the payment method belongs to this customer
+            pm = stripe_lib.PaymentMethod.retrieve(pm_id)
+            if pm.customer != customer.stripe_customer_id:
+                return Response(
+                    {"detail": "Payment method not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            stripe_lib.PaymentMethod.detach(pm_id)
+        except stripe_lib.error.StripeError as e:
+            return Response(
+                {"detail": f"Failed to remove payment method: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

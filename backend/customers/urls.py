@@ -7,6 +7,8 @@ from customers.views import (
     CustomerTokenRefreshView,
     CustomerProfileView,
     CustomerOrderHistoryView,
+    PaymentMethodsView,
+    PaymentMethodDetailView,
 )
 
 urlpatterns = [
@@ -17,4 +19,6 @@ urlpatterns = [
     path("auth/refresh/", CustomerTokenRefreshView.as_view(), name="customer-token-refresh"),
     path("profile/", CustomerProfileView.as_view(), name="customer-profile"),
     path("orders/", CustomerOrderHistoryView.as_view(), name="customer-orders"),
+    path("payment-methods/", PaymentMethodsView.as_view(), name="customer-payment-methods"),
+    path("payment-methods/<str:pm_id>/", PaymentMethodDetailView.as_view(), name="customer-payment-method-detail"),
 ]
