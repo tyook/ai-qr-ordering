@@ -158,6 +158,18 @@ export default function AdminDashboard() {
                 <div>
                   <h2 className="text-xl font-semibold">{r.name}</h2>
                   <p className="text-sm text-muted-foreground">/{r.slug}</p>
+                  {r.subscription && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
+                        {r.subscription.plan_name}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        r.subscription.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}>
+                        {r.subscription.status.replace("_", " ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Link href={`/admin/${r.slug}/menu`}>
@@ -165,6 +177,9 @@ export default function AdminDashboard() {
                   </Link>
                   <Link href={`/admin/${r.slug}/orders`}>
                     <Button variant="outline" size="sm">Orders</Button>
+                  </Link>
+                  <Link href={`/admin/${r.slug}/billing`}>
+                    <Button variant="outline" size="sm">Billing</Button>
                   </Link>
                   <Link href={`/admin/${r.slug}/settings`}>
                     <Button variant="outline" size="sm">Settings</Button>
