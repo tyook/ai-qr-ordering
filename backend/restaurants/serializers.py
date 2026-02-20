@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
-from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem, MenuItemVariant, MenuItemModifier
+from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem, MenuItemVariant, MenuItemModifier, Subscription
 
 User = get_user_model()
 
@@ -76,6 +76,27 @@ class RestaurantSerializer(serializers.ModelSerializer):
             order_count=0,
         )
         return restaurant
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    is_active = serializers.BooleanField(read_only=True)
+    order_limit = serializers.IntegerField(read_only=True)
+    overage_count = serializers.IntegerField(read_only=True)
+    plan_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Subscription
+        fields = [
+            "plan", "plan_name", "status", "trial_end",
+            "current_period_start", "current_period_end",
+            "cancel_at_period_end", "order_count", "order_limit",
+            "overage_count", "is_active",
+        ]
+
+    def get_plan_name(self, obj):
+        from django.conf import settings
+        plan_config = settings.SUBSCRIPTION_PLANS.get(obj.plan, {})
+        return plan_config.get("name", obj.plan.title())
 
 
 class MenuCategorySerializer(serializers.ModelSerializer):

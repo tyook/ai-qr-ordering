@@ -7,6 +7,8 @@ from restaurants.views import (
     MenuCategoryListCreateView, MenuCategoryDetailView,
     MenuItemListCreateView, MenuItemDetailView,
     FullMenuView,
+    SubscriptionDetailView, CreateCheckoutSessionView, CreateBillingPortalView,
+    CancelSubscriptionView, ReactivateSubscriptionView,
 )
 
 urlpatterns = [
@@ -45,5 +47,31 @@ urlpatterns = [
         "restaurants/<slug:slug>/menu/",
         FullMenuView.as_view(),
         name="full-menu",
+    ),
+    # Subscription
+    path(
+        "restaurants/<slug:slug>/subscription/",
+        SubscriptionDetailView.as_view(),
+        name="subscription-detail",
+    ),
+    path(
+        "restaurants/<slug:slug>/subscription/checkout/",
+        CreateCheckoutSessionView.as_view(),
+        name="subscription-checkout",
+    ),
+    path(
+        "restaurants/<slug:slug>/subscription/portal/",
+        CreateBillingPortalView.as_view(),
+        name="subscription-portal",
+    ),
+    path(
+        "restaurants/<slug:slug>/subscription/cancel/",
+        CancelSubscriptionView.as_view(),
+        name="subscription-cancel",
+    ),
+    path(
+        "restaurants/<slug:slug>/subscription/reactivate/",
+        ReactivateSubscriptionView.as_view(),
+        name="subscription-reactivate",
     ),
 ]

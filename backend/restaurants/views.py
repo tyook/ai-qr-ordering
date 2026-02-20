@@ -1,11 +1,13 @@
+import stripe
+from django.conf import settings as django_settings
 from rest_framework import status, generics, permissions
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer, MenuItemSerializer, PublicMenuCategorySerializer
-from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem
+from restaurants.serializers import RegisterSerializer, LoginSerializer, RestaurantSerializer, MenuCategorySerializer, MenuItemSerializer, PublicMenuCategorySerializer, SubscriptionSerializer
+from restaurants.models import Restaurant, RestaurantStaff, MenuCategory, MenuItem, Subscription
 from restaurants.permissions import IsRestaurantOwnerOrStaff
 
 
@@ -186,3 +188,181 @@ class FullMenuView(RestaurantMixin, APIView):
             data.append(cat_data)
 
         return Response({"restaurant_name": restaurant.name, "categories": data})
+
+
+class SubscriptionDetailView(RestaurantMixin, APIView):
+    """GET /api/restaurants/:slug/subscription/ - View subscription details."""
+
+    def get(self, request, slug):
+        restaurant = self.get_restaurant()
+        try:
+            subscription = restaurant.subscription
+        except Subscription.DoesNotExist:
+            return Response(
+                {"detail": "No subscription found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(SubscriptionSerializer(subscription).data)
+
+
+class CreateCheckoutSessionView(RestaurantMixin, APIView):
+    """POST /api/restaurants/:slug/subscription/checkout/ - Create Stripe Checkout session."""
+
+    def post(self, request, slug):
+        restaurant = self.get_restaurant()
+        plan = request.data.get("plan", "starter")
+        interval = request.data.get("interval", "monthly")
+
+        plan_config = django_settings.SUBSCRIPTION_PLANS.get(plan)
+        if not plan_config:
+            return Response(
+                {"detail": "Invalid plan."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        price_key = "monthly_price_id" if interval == "monthly" else "annual_price_id"
+        price_id = plan_config.get(price_key)
+        if not price_id:
+            return Response(
+                {"detail": "Price not configured."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        stripe.api_key = django_settings.STRIPE_SECRET_KEY
+
+        # Get or create Stripe Customer for the restaurant owner
+        try:
+            subscription = restaurant.subscription
+        except Subscription.DoesNotExist:
+            return Response(
+                {"detail": "No subscription found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not subscription.stripe_customer_id:
+            customer = stripe.Customer.create(
+                email=request.user.email,
+                name=f"{request.user.first_name} {request.user.last_name}".strip(),
+                metadata={
+                    "restaurant_id": str(restaurant.id),
+                    "restaurant_slug": restaurant.slug,
+                },
+            )
+            subscription.stripe_customer_id = customer.id
+            subscription.save(update_fields=["stripe_customer_id"])
+
+        checkout_session = stripe.checkout.Session.create(
+            customer=subscription.stripe_customer_id,
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=f"{django_settings.FRONTEND_URL}/admin/{restaurant.slug}/billing?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{django_settings.FRONTEND_URL}/admin/{restaurant.slug}/billing",
+            metadata={
+                "restaurant_id": str(restaurant.id),
+                "plan": plan,
+            },
+            subscription_data={
+                "metadata": {
+                    "restaurant_id": str(restaurant.id),
+                    "plan": plan,
+                },
+            },
+        )
+
+        return Response({"checkout_url": checkout_session.url})
+
+
+class CreateBillingPortalView(RestaurantMixin, APIView):
+    """POST /api/restaurants/:slug/subscription/portal/ - Open Stripe Billing Portal."""
+
+    def post(self, request, slug):
+        restaurant = self.get_restaurant()
+
+        try:
+            subscription = restaurant.subscription
+        except Subscription.DoesNotExist:
+            return Response(
+                {"detail": "No subscription found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not subscription.stripe_customer_id:
+            return Response(
+                {"detail": "No billing account found. Please subscribe first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        stripe.api_key = django_settings.STRIPE_SECRET_KEY
+
+        portal_session = stripe.billing_portal.Session.create(
+            customer=subscription.stripe_customer_id,
+            return_url=f"{django_settings.FRONTEND_URL}/admin/{restaurant.slug}/billing",
+        )
+
+        return Response({"portal_url": portal_session.url})
+
+
+class CancelSubscriptionView(RestaurantMixin, APIView):
+    """POST /api/restaurants/:slug/subscription/cancel/ - Cancel subscription at period end."""
+
+    def post(self, request, slug):
+        restaurant = self.get_restaurant()
+
+        try:
+            subscription = restaurant.subscription
+        except Subscription.DoesNotExist:
+            return Response(
+                {"detail": "No subscription found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not subscription.stripe_subscription_id:
+            return Response(
+                {"detail": "No active paid subscription to cancel."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        stripe.api_key = django_settings.STRIPE_SECRET_KEY
+
+        stripe.Subscription.modify(
+            subscription.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+
+        subscription.cancel_at_period_end = True
+        subscription.save(update_fields=["cancel_at_period_end"])
+
+        return Response(SubscriptionSerializer(subscription).data)
+
+
+class ReactivateSubscriptionView(RestaurantMixin, APIView):
+    """POST /api/restaurants/:slug/subscription/reactivate/ - Undo pending cancellation."""
+
+    def post(self, request, slug):
+        restaurant = self.get_restaurant()
+
+        try:
+            subscription = restaurant.subscription
+        except Subscription.DoesNotExist:
+            return Response(
+                {"detail": "No subscription found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not subscription.stripe_subscription_id:
+            return Response(
+                {"detail": "No active subscription to reactivate."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        stripe.api_key = django_settings.STRIPE_SECRET_KEY
+
+        stripe.Subscription.modify(
+            subscription.stripe_subscription_id,
+            cancel_at_period_end=False,
+        )
+
+        subscription.cancel_at_period_end = False
+        subscription.save(update_fields=["cancel_at_period_end"])
+
+        return Response(SubscriptionSerializer(subscription).data)
