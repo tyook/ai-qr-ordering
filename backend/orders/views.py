@@ -55,6 +55,30 @@ class ParseOrderView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        # Check subscription status
+        from restaurants.models import Subscription
+        from django.utils import timezone
+        try:
+            subscription = restaurant.subscription
+            # Block if canceled or incomplete
+            if not subscription.is_active:
+                return Response(
+                    {"detail": "Subscription is not active. Please subscribe to continue."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            # Block if trial expired
+            if (
+                subscription.status == "trialing"
+                and subscription.trial_end
+                and subscription.trial_end < timezone.now()
+            ):
+                return Response(
+                    {"detail": "Free trial has expired. Please subscribe to continue."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except Subscription.DoesNotExist:
+            subscription = None  # Legacy restaurant, allow access
+
         serializer = ParseInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -65,6 +89,13 @@ class ParseOrderView(APIView):
             menu_context=menu_context,
         )
         result = validate_and_price_order(restaurant, parsed)
+
+        # Increment order count (soft cap — always increment, never block)
+        if subscription:
+            from django.db import models as db_models
+            Subscription.objects.filter(id=subscription.id).update(
+                order_count=db_models.F("order_count") + 1
+            )
 
         return Response(result)
 
