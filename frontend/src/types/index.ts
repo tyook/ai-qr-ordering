@@ -125,3 +125,11 @@ export interface CustomerOrderHistoryItem extends OrderResponse {
   restaurant_name: string;
   restaurant_slug: string;
 }
+
+export interface SavedPaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+}

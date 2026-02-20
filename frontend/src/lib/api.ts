@@ -91,6 +91,7 @@ import type {
   CustomerAuthResponse,
   CustomerProfile,
   CustomerOrderHistoryItem,
+  SavedPaymentMethod,
 } from "@/types";
 
 export async function fetchMenu(slug: string): Promise<PublicMenu> {
@@ -136,9 +137,11 @@ export async function createPayment(
   tableIdentifier: string,
   language: string,
   customerName?: string,
-  customerPhone?: string
+  customerPhone?: string,
+  paymentMethodId?: string,
+  saveCard?: boolean,
 ): Promise<CreatePaymentResponse> {
-  return apiFetch<CreatePaymentResponse>(`/api/order/${slug}/create-payment/`, {
+  return customerApiFetch<CreatePaymentResponse>(`/api/order/${slug}/create-payment/`, {
     method: "POST",
     body: JSON.stringify({
       items,
@@ -147,6 +150,9 @@ export async function createPayment(
       language,
       customer_name: customerName || "",
       customer_phone: customerPhone || "",
+      payment_method_id: paymentMethodId || "",
+      save_card: saveCard || false,
+      return_url: window.location.href,
     }),
   });
 }
@@ -283,5 +289,15 @@ export async function customerAppleAuth(
     throw new Error(error.detail || `API error: ${response.status}`);
   }
   return response.json();
+}
+
+export async function fetchPaymentMethods(): Promise<SavedPaymentMethod[]> {
+  return customerApiFetch<SavedPaymentMethod[]>("/api/customer/payment-methods/");
+}
+
+export async function deletePaymentMethod(pmId: string): Promise<void> {
+  await customerApiFetch<void>(`/api/customer/payment-methods/${pmId}/`, {
+    method: "DELETE",
+  });
 }
 
