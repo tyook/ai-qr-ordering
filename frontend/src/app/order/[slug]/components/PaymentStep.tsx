@@ -52,7 +52,7 @@ function SavedCardOption({
   );
 }
 
-function PaymentForm({ saveCard }: { saveCard: boolean }) {
+function PaymentForm() {
   const stripe = useStripe();
   const elements = useElements();
   const { setStep } = useOrderStore();
@@ -265,7 +265,7 @@ export function PaymentStep({ taxRate }: PaymentStepProps) {
               appearance: { theme: "stripe" },
             }}
           >
-            <PaymentForm saveCard={saveCard} />
+            <PaymentForm />
           </Elements>
           {hasSavedCards && (
             <Button
