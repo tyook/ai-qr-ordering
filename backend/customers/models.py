@@ -18,6 +18,7 @@ class Customer(models.Model):
         max_length=10, choices=AuthProvider.choices, default=AuthProvider.EMAIL
     )
     auth_provider_id = models.CharField(max_length=255, blank=True, default="")
+    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     dietary_preferences = models.JSONField(default=list, blank=True)
     allergies = models.JSONField(default=list, blank=True)
     preferred_language = models.CharField(max_length=10, blank=True, default="en-US")
