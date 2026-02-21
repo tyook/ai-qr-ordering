@@ -20,8 +20,8 @@ def _setup_restaurant_with_menu():
 
 @pytest.mark.django_db
 class TestSubscriptionGate:
-    @patch("orders.views.validate_and_price_order")
-    @patch("orders.views.OrderParsingAgent.run")
+    @patch("orders.services.OrderService.validate_and_price_order")
+    @patch("orders.services.OrderParsingAgent.run")
     def test_parse_order_increments_order_count(self, mock_agent, mock_validate, api_client):
         mock_agent.return_value = {"items": [], "language": "en"}
         mock_validate.return_value = {"items": [], "language": "en"}
@@ -79,8 +79,8 @@ class TestSubscriptionGate:
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @patch("orders.views.validate_and_price_order")
-    @patch("orders.views.OrderParsingAgent.run")
+    @patch("orders.services.OrderService.validate_and_price_order")
+    @patch("orders.services.OrderParsingAgent.run")
     def test_parse_order_allowed_when_over_limit_soft_cap(self, mock_agent, mock_validate, api_client):
         """Soft cap: orders continue even when over limit."""
         mock_agent.return_value = {"items": [], "language": "en"}
@@ -107,8 +107,8 @@ class TestSubscriptionGate:
         restaurant = _setup_restaurant_with_menu()
         # No Subscription object created
         with (
-            patch("orders.views.OrderParsingAgent.run") as mock_agent,
-            patch("orders.views.validate_and_price_order") as mock_validate,
+            patch("orders.services.OrderParsingAgent.run") as mock_agent,
+            patch("orders.services.OrderService.validate_and_price_order") as mock_validate,
         ):
             mock_agent.return_value = {"items": [], "language": "en"}
             mock_validate.return_value = {"items": [], "language": "en"}

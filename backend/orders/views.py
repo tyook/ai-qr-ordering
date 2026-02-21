@@ -1,101 +1,32 @@
-from datetime import UTC
-from decimal import Decimal
-
-import stripe
-from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from orders.broadcast import broadcast_order_to_kitchen
-from orders.llm.agent import OrderParsingAgent
-from orders.llm.menu_context import build_menu_context
-from orders.models import Order, OrderItem
+from orders.models import Order
 from orders.serializers import ConfirmOrderSerializer, OrderResponseSerializer, ParseInputSerializer
-from orders.services import validate_and_price_order
-from restaurants.models import MenuCategory, MenuItem, MenuItemModifier, MenuItemVariant, Restaurant, RestaurantStaff
-from restaurants.serializers import PublicMenuCategorySerializer
+from orders.services import OrderService
 
 
 class PublicMenuView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
-        try:
-            restaurant = Restaurant.objects.get(slug=slug)
-        except Restaurant.DoesNotExist:
-            return Response(
-                {"detail": "Restaurant not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        categories = (
-            MenuCategory.objects.filter(restaurant=restaurant, is_active=True)
-            .prefetch_related("items__variants", "items__modifiers")
-            .order_by("sort_order")
-        )
-
-        return Response(
-            {
-                "restaurant_name": restaurant.name,
-                "tax_rate": str(restaurant.tax_rate),
-                "categories": PublicMenuCategorySerializer(categories, many=True).data,
-            }
-        )
+        return Response(OrderService.get_public_menu(slug))
 
 
 class ParseOrderView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, slug):
-        try:
-            restaurant = Restaurant.objects.get(slug=slug)
-        except Restaurant.DoesNotExist:
-            return Response(
-                {"detail": "Restaurant not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        # Check subscription status
-        from django.utils import timezone
-
-        from restaurants.models import Subscription
-
-        try:
-            subscription = restaurant.subscription
-            # Block if canceled or incomplete
-            if not subscription.is_active:
-                return Response(
-                    {"detail": "Subscription is not active. Please subscribe to continue."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            # Block if trial expired
-            if subscription.status == "trialing" and subscription.trial_end and subscription.trial_end < timezone.now():
-                return Response(
-                    {"detail": "Free trial has expired. Please subscribe to continue."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-        except Subscription.DoesNotExist:
-            subscription = None  # Legacy restaurant, allow access
+        restaurant = OrderService.get_restaurant_by_slug(slug)
 
         serializer = ParseInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        raw_input = serializer.validated_data["raw_input"]
-        menu_context = build_menu_context(restaurant)
-        parsed = OrderParsingAgent.run(
-            raw_input=raw_input,
-            menu_context=menu_context,
+        result = OrderService.parse_order(
+            restaurant, serializer.validated_data["raw_input"]
         )
-        result = validate_and_price_order(restaurant, parsed)
-
-        # Increment order count (soft cap — always increment, never block)
-        if subscription:
-            from django.db import models as db_models
-
-            Subscription.objects.filter(id=subscription.id).update(order_count=db_models.F("order_count") + 1)
-
         return Response(result)
 
 
@@ -104,117 +35,32 @@ class ConfirmOrderView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, slug):
-        try:
-            restaurant = Restaurant.objects.get(slug=slug)
-        except Restaurant.DoesNotExist:
-            return Response(
-                {"detail": "Restaurant not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        restaurant = OrderService.get_restaurant_by_slug(slug)
 
         serializer = ConfirmOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        if not data["items"]:
-            return Response(
-                {"detail": "Order must contain at least one item."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validated_items, pricing = OrderService.validate_and_price_items(
+            restaurant, data["items"]
+        )
+        customer = OrderService.resolve_customer_from_token(request)
 
-        # Validate and calculate price server-side
-        total_price = Decimal("0.00")
-        validated_items = []
-
-        for item_data in data["items"]:
-            try:
-                menu_item = MenuItem.objects.get(
-                    id=item_data["menu_item_id"],
-                    category__restaurant=restaurant,
-                    is_active=True,
-                )
-                variant = MenuItemVariant.objects.get(
-                    id=item_data["variant_id"],
-                    menu_item=menu_item,
-                )
-            except (MenuItem.DoesNotExist, MenuItemVariant.DoesNotExist):
-                return Response(
-                    {"detail": "Invalid menu item or variant."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            valid_modifiers = []
-            modifier_total = Decimal("0.00")
-            for mod_id in item_data.get("modifier_ids", []):
-                try:
-                    modifier = MenuItemModifier.objects.get(id=mod_id, menu_item=menu_item)
-                    valid_modifiers.append(modifier)
-                    modifier_total += modifier.price_adjustment
-                except MenuItemModifier.DoesNotExist:
-                    pass  # Skip invalid modifiers silently
-
-            quantity = item_data["quantity"]
-            line_total = (variant.price + modifier_total) * quantity
-            total_price += line_total
-
-            validated_items.append(
-                {
-                    "menu_item": menu_item,
-                    "variant": variant,
-                    "quantity": quantity,
-                    "special_requests": item_data.get("special_requests", ""),
-                    "modifiers": valid_modifiers,
-                }
-            )
-
-        # Calculate tax
-        subtotal = total_price
-        tax_rate = restaurant.tax_rate
-        tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
-        grand_total = subtotal + tax_amount
-
-        # Check for customer auth and auto-link
-        customer = None
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-        if auth_header.startswith("Bearer "):
-            try:
-                from rest_framework_simplejwt.tokens import UntypedToken
-
-                from customers.models import Customer
-
-                token_str = auth_header.split(" ", 1)[1]
-                token = UntypedToken(token_str)
-                if token.get("token_type") == "customer_access":
-                    customer = Customer.objects.get(id=token["customer_id"])
-            except Exception:
-                pass  # Not a customer token or invalid — that's fine
-
-        # Create order
-        order = Order.objects.create(
-            restaurant=restaurant,
-            table_identifier=data.get("table_identifier") or None,
+        order = OrderService.create_order(
+            restaurant,
+            validated_items,
+            pricing,
             customer=customer,
-            customer_name=data.get("customer_name", ""),
-            customer_phone=data.get("customer_phone", ""),
-            status="confirmed",
+            order_status="confirmed",
             raw_input=data["raw_input"],
             parsed_json=request.data,
-            language_detected=data.get("language", "en"),
-            subtotal=subtotal,
-            tax_rate=tax_rate,
-            tax_amount=tax_amount,
-            total_price=grand_total,
+            language=data.get("language", "en"),
+            table_identifier=data.get("table_identifier"),
+            customer_name=data.get("customer_name", ""),
+            customer_phone=data.get("customer_phone", ""),
         )
 
-        for item_data in validated_items:
-            order_item = OrderItem.objects.create(
-                order=order,
-                menu_item=item_data["menu_item"],
-                variant=item_data["variant"],
-                quantity=item_data["quantity"],
-                special_requests=item_data["special_requests"],
-            )
-            order_item.modifiers.set(item_data["modifiers"])
+        from orders.broadcast import broadcast_order_to_kitchen
 
         broadcast_order_to_kitchen(order)
 
@@ -229,175 +75,47 @@ class CreatePaymentView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, slug):
-        try:
-            restaurant = Restaurant.objects.get(slug=slug)
-        except Restaurant.DoesNotExist:
-            return Response(
-                {"detail": "Restaurant not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        restaurant = OrderService.get_restaurant_by_slug(slug)
 
         serializer = ConfirmOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        if not data["items"]:
-            return Response(
-                {"detail": "Order must contain at least one item."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validated_items, pricing = OrderService.validate_and_price_items(
+            restaurant, data["items"]
+        )
+        customer = OrderService.resolve_customer_from_token(request)
 
-        # Validate and calculate price server-side (same logic as ConfirmOrderView)
-        total_price = Decimal("0.00")
-        validated_items = []
-
-        for item_data in data["items"]:
-            try:
-                menu_item = MenuItem.objects.get(
-                    id=item_data["menu_item_id"],
-                    category__restaurant=restaurant,
-                    is_active=True,
-                )
-                variant = MenuItemVariant.objects.get(
-                    id=item_data["variant_id"],
-                    menu_item=menu_item,
-                )
-            except (MenuItem.DoesNotExist, MenuItemVariant.DoesNotExist):
-                return Response(
-                    {"detail": "Invalid menu item or variant."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            valid_modifiers = []
-            modifier_total = Decimal("0.00")
-            for mod_id in item_data.get("modifier_ids", []):
-                try:
-                    modifier = MenuItemModifier.objects.get(id=mod_id, menu_item=menu_item)
-                    valid_modifiers.append(modifier)
-                    modifier_total += modifier.price_adjustment
-                except MenuItemModifier.DoesNotExist:
-                    pass
-
-            quantity = item_data["quantity"]
-            line_total = (variant.price + modifier_total) * quantity
-            total_price += line_total
-
-            validated_items.append(
-                {
-                    "menu_item": menu_item,
-                    "variant": variant,
-                    "quantity": quantity,
-                    "special_requests": item_data.get("special_requests", ""),
-                    "modifiers": valid_modifiers,
-                }
-            )
-
-        # Calculate tax
-        subtotal = total_price
-        tax_rate = restaurant.tax_rate
-        tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
-        grand_total = subtotal + tax_amount
-
-        # Check for customer auth
-        customer = None
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-        if auth_header.startswith("Bearer "):
-            try:
-                from rest_framework_simplejwt.tokens import UntypedToken
-
-                from customers.models import Customer
-
-                token_str = auth_header.split(" ", 1)[1]
-                token = UntypedToken(token_str)
-                if token.get("token_type") == "customer_access":
-                    customer = Customer.objects.get(id=token["customer_id"])
-            except Exception:
-                pass
-
-        # Build customer_allergies list:
-        # - authenticated users: use their profile allergies
-        # - guest users: use allergies detected by the LLM (sent from frontend)
+        # Build customer_allergies list
         customer_allergies = []
         if customer and customer.allergies:
             customer_allergies = list(customer.allergies)
         elif data.get("allergies"):
             customer_allergies = list(data["allergies"])
 
-        # Create order with pending_payment status
-        order = Order.objects.create(
-            restaurant=restaurant,
-            table_identifier=data.get("table_identifier") or None,
+        order = OrderService.create_order(
+            restaurant,
+            validated_items,
+            pricing,
             customer=customer,
-            customer_name=data.get("customer_name", ""),
-            customer_phone=data.get("customer_phone", ""),
-            status="pending_payment",
+            order_status="pending_payment",
             payment_status="pending",
             raw_input=data["raw_input"],
             parsed_json=request.data,
-            language_detected=data.get("language", "en"),
-            subtotal=subtotal,
-            tax_rate=tax_rate,
-            tax_amount=tax_amount,
-            total_price=grand_total,
+            language=data.get("language", "en"),
+            table_identifier=data.get("table_identifier"),
+            customer_name=data.get("customer_name", ""),
+            customer_phone=data.get("customer_phone", ""),
             customer_allergies=customer_allergies,
         )
 
-        for item_data in validated_items:
-            order_item = OrderItem.objects.create(
-                order=order,
-                menu_item=item_data["menu_item"],
-                variant=item_data["variant"],
-                quantity=item_data["quantity"],
-                special_requests=item_data["special_requests"],
-            )
-            order_item.modifiers.set(item_data["modifiers"])
-
-        # Create Stripe PaymentIntent
-        if not settings.STRIPE_SECRET_KEY:
-            order.delete()
-            return Response(
-                {"detail": "Payment system not configured."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        amount_cents = int((grand_total * Decimal("100")).quantize(Decimal("1")))
-
-        payment_method_id = data.get("payment_method_id")
-
-        intent_params = {
-            "amount": amount_cents,
-            "currency": restaurant.currency.lower(),
-            "automatic_payment_methods": {"enabled": True},
-            "metadata": {
-                "order_id": str(order.id),
-                "restaurant_slug": restaurant.slug,
-            },
-        }
-
-        # If customer is logged in, attach Stripe Customer
-        if customer:
-            stripe_customer_id = customer.get_or_create_stripe_customer()
-            intent_params["customer"] = stripe_customer_id
-
-        # If using a saved payment method, confirm immediately server-side
-        if payment_method_id and customer:
-            intent_params["payment_method"] = payment_method_id
-            intent_params["confirm"] = True
-            intent_params["return_url"] = data.get("return_url", "https://localhost")
-
-        try:
-            intent = stripe.PaymentIntent.create(**intent_params)
-        except stripe.error.StripeError as e:
-            order.delete()
-            return Response(
-                {"detail": f"Payment setup failed: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        order.stripe_payment_intent_id = intent.id
-        if payment_method_id:
-            order.stripe_payment_method_id = payment_method_id
-        order.save(update_fields=["stripe_payment_intent_id", "stripe_payment_method_id"])
+        intent = OrderService.create_payment_intent(
+            order,
+            restaurant,
+            customer=customer,
+            payment_method_id=data.get("payment_method_id"),
+            return_url=data.get("return_url"),
+        )
 
         response_data = OrderResponseSerializer(order).data
         response_data["client_secret"] = intent.client_secret
@@ -428,25 +146,7 @@ class SaveCardConsentView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if not order.stripe_payment_intent_id:
-            return Response(
-                {"detail": "No payment intent found."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-
-        try:
-            stripe.PaymentIntent.modify(
-                order.stripe_payment_intent_id,
-                setup_future_usage="on_session",
-            )
-        except stripe.error.StripeError as e:
-            return Response(
-                {"detail": f"Failed to update payment: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        OrderService.save_card_consent(order)
         return Response({"detail": "Card will be saved after payment."})
 
 
@@ -469,10 +169,9 @@ class ConfirmPaymentView(APIView):
     """Called by the frontend after stripe.confirmPayment() succeeds.
 
     Verifies the PaymentIntent status with Stripe and transitions the
-    order from pending_payment → confirmed.  This is a synchronous
+    order from pending_payment -> confirmed.  This is a synchronous
     fallback so the order status is correct even when the Stripe webhook
-    hasn't arrived yet (common in local dev and occasionally in prod due
-    to webhook delays).
+    hasn't arrived yet.
     """
 
     permission_classes = [AllowAny]
@@ -486,34 +185,15 @@ class ConfirmPaymentView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if not order.stripe_payment_intent_id:
-            return Response(
-                {"detail": "No payment intent associated with this order."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        order = OrderService.confirm_payment(order)
 
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        try:
-            intent = stripe.PaymentIntent.retrieve(order.stripe_payment_intent_id)
-        except stripe.error.StripeError as e:
+        if order.payment_status == "failed":
             return Response(
-                {"detail": f"Failed to verify payment: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        if intent.status == "succeeded":
-            updated = Order.objects.filter(
-                id=order.id, payment_status="pending"
-            ).update(status="confirmed", payment_status="paid")
-            order.refresh_from_db()
-            if updated:
-                broadcast_order_to_kitchen(order)
-        elif intent.status in ("requires_payment_method", "canceled"):
-            Order.objects.filter(
-                id=order.id, payment_status="pending"
-            ).update(payment_status="failed")
-            return Response(
-                {"detail": "Payment failed.", "status": order.status, "payment_status": "failed"},
+                {
+                    "detail": "Payment failed.",
+                    "status": order.status,
+                    "payment_status": "failed",
+                },
                 status=status.HTTP_402_PAYMENT_REQUIRED,
             )
 
@@ -525,130 +205,9 @@ class StripeWebhookView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        payload = request.body
         sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
-
-        try:
-            event = stripe.Webhook.construct_event(
-                payload,
-                sig_header,
-                settings.STRIPE_WEBHOOK_SECRET,
-            )
-        except (ValueError, stripe.error.SignatureVerificationError):
-            return Response(
-                {"detail": "Invalid webhook signature."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if event["type"] == "payment_intent.succeeded":
-            intent = event["data"]["object"]
-            try:
-                order = Order.objects.get(stripe_payment_intent_id=intent["id"])
-            except Order.DoesNotExist:
-                return Response(status=status.HTTP_200_OK)
-
-            updated = Order.objects.filter(
-                id=order.id, payment_status="pending"
-            ).update(status="confirmed", payment_status="paid")
-            if updated:
-                order.refresh_from_db()
-                broadcast_order_to_kitchen(order)
-
-        elif event["type"] in ("payment_intent.payment_failed", "payment_intent.canceled"):
-            intent = event["data"]["object"]
-            try:
-                order = Order.objects.get(stripe_payment_intent_id=intent["id"])
-                order.payment_status = "failed"
-                order.save(update_fields=["payment_status"])
-            except Order.DoesNotExist:
-                pass
-
-        elif event["type"] == "checkout.session.completed":
-            session = event["data"]["object"]
-            if session.get("mode") == "subscription":
-                from restaurants.models import Subscription
-
-                restaurant_id = session.get("metadata", {}).get("restaurant_id")
-                plan = session.get("metadata", {}).get("plan", "starter")
-                if restaurant_id:
-                    try:
-                        sub = Subscription.objects.get(restaurant_id=restaurant_id)
-                        sub.stripe_subscription_id = session["subscription"]
-                        sub.stripe_customer_id = session.get("customer", sub.stripe_customer_id)
-                        sub.plan = plan
-                        sub.status = "active"
-                        sub.order_count = 0  # Reset for new billing period
-                        sub.save(
-                            update_fields=[
-                                "stripe_subscription_id",
-                                "stripe_customer_id",
-                                "plan",
-                                "status",
-                                "order_count",
-                            ]
-                        )
-                    except Subscription.DoesNotExist:
-                        pass
-
-        elif event["type"] == "customer.subscription.updated":
-            sub_data = event["data"]["object"]
-            from restaurants.models import Subscription
-
-            try:
-                sub = Subscription.objects.get(stripe_subscription_id=sub_data["id"])
-                sub.status = sub_data["status"]
-                sub.cancel_at_period_end = sub_data.get("cancel_at_period_end", False)
-
-                from datetime import datetime
-
-                if sub_data.get("current_period_start"):
-                    sub.current_period_start = datetime.fromtimestamp(sub_data["current_period_start"], tz=UTC)
-                if sub_data.get("current_period_end"):
-                    sub.current_period_end = datetime.fromtimestamp(sub_data["current_period_end"], tz=UTC)
-
-                # Update plan from metadata if present
-                plan = sub_data.get("metadata", {}).get("plan")
-                if plan and plan in ("starter", "growth", "pro"):
-                    sub.plan = plan
-
-                sub.save()
-            except Subscription.DoesNotExist:
-                pass
-
-        elif event["type"] == "customer.subscription.deleted":
-            sub_data = event["data"]["object"]
-            from restaurants.models import Subscription
-
-            try:
-                sub = Subscription.objects.get(stripe_subscription_id=sub_data["id"])
-                sub.status = "canceled"
-                sub.save(update_fields=["status"])
-            except Subscription.DoesNotExist:
-                pass
-
-        elif event["type"] == "invoice.paid":
-            # Reset order count at start of new billing period
-            invoice = event["data"]["object"]
-            subscription_id = invoice.get("subscription")
-            if subscription_id:
-                from restaurants.models import Subscription
-
-                try:
-                    sub = Subscription.objects.get(stripe_subscription_id=subscription_id)
-                    sub.order_count = 0
-                    sub.save(update_fields=["order_count"])
-                except Subscription.DoesNotExist:
-                    pass
-
+        OrderService.handle_stripe_webhook(request.body, sig_header)
         return Response(status=status.HTTP_200_OK)
-
-
-VALID_TRANSITIONS = {
-    "pending_payment": ["confirmed"],
-    "confirmed": ["preparing"],
-    "preparing": ["ready"],
-    "ready": ["completed"],
-}
 
 
 class KitchenOrderUpdateView(APIView):
@@ -663,27 +222,6 @@ class KitchenOrderUpdateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Check user is staff at this restaurant
-        is_owner = order.restaurant.owner == request.user
-        is_staff = RestaurantStaff.objects.filter(user=request.user, restaurant=order.restaurant).exists()
-        if not is_owner and not is_staff:
-            return Response(
-                {"detail": "Not authorized."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
         new_status = request.data.get("status")
-        allowed = VALID_TRANSITIONS.get(order.status, [])
-        if new_status not in allowed:
-            return Response(
-                {"detail": f"Cannot transition from '{order.status}' to '{new_status}'. Allowed: {allowed}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        order.status = new_status
-        order.save()
-
-        # Broadcast status change to kitchen
-        broadcast_order_to_kitchen(order)
-
+        order = OrderService.update_order_status(order, new_status, request.user)
         return Response(OrderResponseSerializer(order).data)

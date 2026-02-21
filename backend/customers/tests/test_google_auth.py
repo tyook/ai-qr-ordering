@@ -16,7 +16,7 @@ class TestGoogleAuth:
         "picture": "https://example.com/photo.jpg",
     }
 
-    @patch("customers.views.verify_google_token")
+    @patch("customers.services.verify_google_token")
     def test_google_login_new_user(self, mock_verify, api_client):
         mock_verify.return_value = self.MOCK_GOOGLE_USER
         resp = api_client.post(
@@ -35,7 +35,7 @@ class TestGoogleAuth:
         assert customer.auth_provider == "google"
         assert customer.auth_provider_id == "google-user-123"
 
-    @patch("customers.views.verify_google_token")
+    @patch("customers.services.verify_google_token")
     def test_google_login_existing_user(self, mock_verify, api_client):
         mock_verify.return_value = self.MOCK_GOOGLE_USER
         CustomerFactory(email="alice@gmail.com", name="Alice")
@@ -51,7 +51,7 @@ class TestGoogleAuth:
         # No duplicate created
         assert Customer.objects.filter(email="alice@gmail.com").count() == 1
 
-    @patch("customers.views.verify_google_token")
+    @patch("customers.services.verify_google_token")
     def test_google_login_invalid_token(self, mock_verify, api_client):
         mock_verify.side_effect = ValueError("Invalid token")
         resp = api_client.post(

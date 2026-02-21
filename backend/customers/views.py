@@ -1,4 +1,3 @@
-import stripe as stripe_lib
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -6,16 +5,13 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import UntypedToken
 
-from customers.authentication import CustomerAccessToken, CustomerRefreshToken
 from customers.models import Customer
 from customers.serializers import (
     CustomerLoginSerializer,
     CustomerProfileSerializer,
     CustomerRegisterSerializer,
 )
-from customers.social_auth import verify_apple_token, verify_google_token
-from orders.models import Order
-from orders.serializers import OrderResponseSerializer
+from customers.services import CustomerService
 
 
 class CustomerAuthMixin:
@@ -53,18 +49,7 @@ class CustomerLoginView(APIView):
         serializer = CustomerLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         customer = serializer.validated_data["customer"]
-        refresh = CustomerRefreshToken.for_customer(customer)
-        return Response(
-            {
-                "customer": {
-                    "id": str(customer.id),
-                    "email": customer.email,
-                    "name": customer.name,
-                },
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-            }
-        )
+        return Response(CustomerService.generate_tokens(customer))
 
 
 class GoogleAuthView(APIView):
@@ -72,63 +57,17 @@ class GoogleAuthView(APIView):
 
     def post(self, request):
         token = request.data.get("token")
-        link_order_id = request.data.get("link_order_id")
         if not token:
             return Response(
                 {"detail": "Google token is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            google_user = verify_google_token(token)
-        except ValueError as e:
-            return Response(
-                {"detail": f"Invalid Google token: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        email = google_user["email"]
-        if not email:
-            return Response(
-                {"detail": "Google account has no email."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Find or create customer
-        customer, created = Customer.objects.get_or_create(
-            email=email.lower(),
-            defaults={
-                "name": google_user["name"],
-                "auth_provider": "google",
-                "auth_provider_id": google_user["sub"],
-            },
+        customer = CustomerService.authenticate_google(token)
+        CustomerService.link_order_to_customer(
+            request.data.get("link_order_id"), customer
         )
-
-        # If existing customer, update provider info if they were email-only
-        if not created and customer.auth_provider == "email":
-            customer.auth_provider = "google"
-            customer.auth_provider_id = google_user["sub"]
-            customer.save(update_fields=["auth_provider", "auth_provider_id"])
-
-        # Link order if provided
-        if link_order_id:
-            from orders.models import Order
-
-            Order.objects.filter(id=link_order_id, customer__isnull=True).update(customer=customer)
-
-        # Return JWT
-        refresh = CustomerRefreshToken.for_customer(customer)
-        return Response(
-            {
-                "customer": {
-                    "id": str(customer.id),
-                    "email": customer.email,
-                    "name": customer.name,
-                },
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-            }
-        )
+        return Response(CustomerService.generate_tokens(customer))
 
 
 class AppleAuthView(APIView):
@@ -136,63 +75,19 @@ class AppleAuthView(APIView):
 
     def post(self, request):
         token = request.data.get("token")
-        name = request.data.get("name", "")  # Apple sends name only on first sign-in
-        link_order_id = request.data.get("link_order_id")
         if not token:
             return Response(
                 {"detail": "Apple token is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            apple_user = verify_apple_token(token)
-        except (ValueError, Exception) as e:
-            return Response(
-                {"detail": f"Invalid Apple token: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        email = apple_user["email"]
-        if not email:
-            return Response(
-                {"detail": "Apple account has no email."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Use name from request body (Apple only sends it the first time)
-        display_name = name or apple_user.get("name", "") or email.split("@")[0]
-
-        customer, created = Customer.objects.get_or_create(
-            email=email.lower(),
-            defaults={
-                "name": display_name,
-                "auth_provider": "apple",
-                "auth_provider_id": apple_user["sub"],
-            },
+        customer = CustomerService.authenticate_apple(
+            token, name=request.data.get("name", "")
         )
-
-        if not created and customer.auth_provider == "email":
-            customer.auth_provider = "apple"
-            customer.auth_provider_id = apple_user["sub"]
-            customer.save(update_fields=["auth_provider", "auth_provider_id"])
-
-        if link_order_id:
-            from orders.models import Order
-
-            Order.objects.filter(id=link_order_id, customer__isnull=True).update(customer=customer)
-
-        refresh = CustomerRefreshToken.for_customer(customer)
-        return Response(
-            {
-                "customer": {
-                    "id": str(customer.id),
-                    "email": customer.email,
-                    "name": customer.name,
-                },
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-            }
+        CustomerService.link_order_to_customer(
+            request.data.get("link_order_id"), customer
         )
+        return Response(CustomerService.generate_tokens(customer))
 
 
 class CustomerTokenRefreshView(APIView):
@@ -205,22 +100,8 @@ class CustomerTokenRefreshView(APIView):
                 {"detail": "Refresh token is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        try:
-            # Validate the refresh token
-            refresh_token = UntypedToken(token_str)
-            if refresh_token.get("token_type") != "customer_refresh":
-                raise InvalidToken("Invalid token type")
-            # Generate new access token with proper expiration
-            access = CustomerAccessToken()
-            access.set_exp(from_time=refresh_token.current_time)
-            access["customer_id"] = refresh_token["customer_id"]
-            access["token_type"] = "customer_access"
-            return Response({"access": str(access)})
-        except (InvalidToken, TokenError):
-            return Response(
-                {"detail": "Invalid or expired refresh token."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+        access = CustomerService.refresh_access_token(token_str)
+        return Response({"access": access})
 
 
 class CustomerProfileView(CustomerAuthMixin, APIView):
@@ -252,7 +133,7 @@ class CustomerProfileView(CustomerAuthMixin, APIView):
 
 
 class CustomerOrderHistoryView(CustomerAuthMixin, APIView):
-    """GET /api/customer/orders/ — list customer's past orders."""
+    """GET /api/customer/orders/ - list customer's past orders."""
 
     authentication_classes = []
     permission_classes = []
@@ -264,22 +145,11 @@ class CustomerOrderHistoryView(CustomerAuthMixin, APIView):
                 {"detail": "Authentication required."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        orders = (
-            Order.objects.filter(customer=customer)
-            .select_related("restaurant")
-            .prefetch_related("items__menu_item", "items__variant")
-        )
-        data = []
-        for order in orders:
-            order_data = OrderResponseSerializer(order).data
-            order_data["restaurant_name"] = order.restaurant.name
-            order_data["restaurant_slug"] = order.restaurant.slug
-            data.append(order_data)
-        return Response(data)
+        return Response(CustomerService.get_order_history(customer))
 
 
 class CustomerOrderDetailView(CustomerAuthMixin, APIView):
-    """GET /api/customer/orders/<order_id>/ — single order with full details."""
+    """GET /api/customer/orders/<order_id>/ - single order with full details."""
 
     authentication_classes = []
     permission_classes = []
@@ -291,46 +161,11 @@ class CustomerOrderDetailView(CustomerAuthMixin, APIView):
                 {"detail": "Authentication required."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        try:
-            order = (
-                Order.objects.select_related("restaurant")
-                .prefetch_related("items__menu_item", "items__variant", "items__modifiers")
-                .get(id=order_id, customer=customer)
-            )
-        except Order.DoesNotExist:
-            return Response(
-                {"detail": "Order not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        order_data = OrderResponseSerializer(order).data
-        order_data["restaurant_name"] = order.restaurant.name
-        order_data["restaurant_slug"] = order.restaurant.slug
-
-        # Resolve Stripe payment method to card details if available
-        payment_method_info = None
-        if order.stripe_payment_method_id:
-            try:
-                from django.conf import settings
-
-                stripe_lib.api_key = settings.STRIPE_SECRET_KEY
-                pm = stripe_lib.PaymentMethod.retrieve(order.stripe_payment_method_id)
-                if pm.card:
-                    payment_method_info = {
-                        "brand": pm.card.brand,
-                        "last4": pm.card.last4,
-                        "exp_month": pm.card.exp_month,
-                        "exp_year": pm.card.exp_year,
-                    }
-            except Exception:
-                pass
-        order_data["payment_method"] = payment_method_info
-
-        return Response(order_data)
+        return Response(CustomerService.get_order_detail(customer, order_id))
 
 
 class PaymentMethodsView(CustomerAuthMixin, APIView):
-    """GET: list saved payment methods. DELETE: detach a payment method."""
+    """GET: list saved payment methods."""
 
     authentication_classes = []
     permission_classes = []
@@ -342,35 +177,7 @@ class PaymentMethodsView(CustomerAuthMixin, APIView):
                 {"detail": "Authentication required."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
-        if not customer.stripe_customer_id:
-            return Response([])
-
-        from django.conf import settings
-
-        stripe_lib.api_key = settings.STRIPE_SECRET_KEY
-
-        try:
-            methods = stripe_lib.PaymentMethod.list(
-                customer=customer.stripe_customer_id,
-                type="card",
-            )
-        except stripe_lib.error.StripeError:
-            return Response([])
-
-        result = []
-        for pm in methods.data:
-            result.append(
-                {
-                    "id": pm.id,
-                    "brand": pm.card.brand,
-                    "last4": pm.card.last4,
-                    "exp_month": pm.card.exp_month,
-                    "exp_year": pm.card.exp_year,
-                }
-            )
-
-        return Response(result)
+        return Response(CustomerService.list_payment_methods(customer))
 
 
 class PaymentMethodDetailView(CustomerAuthMixin, APIView):
@@ -386,30 +193,5 @@ class PaymentMethodDetailView(CustomerAuthMixin, APIView):
                 {"detail": "Authentication required."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
-        if not customer.stripe_customer_id:
-            return Response(
-                {"detail": "No payment methods found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        from django.conf import settings
-
-        stripe_lib.api_key = settings.STRIPE_SECRET_KEY
-
-        try:
-            # Verify the payment method belongs to this customer
-            pm = stripe_lib.PaymentMethod.retrieve(pm_id)
-            if pm.customer != customer.stripe_customer_id:
-                return Response(
-                    {"detail": "Payment method not found."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-            stripe_lib.PaymentMethod.detach(pm_id)
-        except stripe_lib.error.StripeError as e:
-            return Response(
-                {"detail": f"Failed to remove payment method: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        CustomerService.detach_payment_method(customer, pm_id)
         return Response(status=status.HTTP_204_NO_CONTENT)

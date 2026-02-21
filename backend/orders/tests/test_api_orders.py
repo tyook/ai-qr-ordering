@@ -35,7 +35,7 @@ class TestParseOrder:
             "modifier": modifier,
         }
 
-    @patch("orders.views.OrderParsingAgent.run")
+    @patch("orders.services.OrderParsingAgent.run")
     def test_parse_returns_structured_order(self, mock_run, api_client, menu_setup):
         mock_run.return_value = ParsedOrder(
             items=[
@@ -62,7 +62,7 @@ class TestParseOrder:
         assert response.data["total_price"] == "14.99"
         assert response.data["language"] == "en"
 
-    @patch("orders.views.OrderParsingAgent.run")
+    @patch("orders.services.OrderParsingAgent.run")
     def test_parse_rejects_invalid_item_ids(self, mock_run, api_client, menu_setup):
         mock_run.return_value = ParsedOrder(
             items=[
@@ -245,8 +245,8 @@ class TestCreatePayment:
             "variant": variant,
         }
 
-    @patch("orders.views.settings")
-    @patch("orders.views.stripe")
+    @patch("orders.services.settings")
+    @patch("orders.services.stripe")
     def test_create_payment_creates_order_and_intent(self, mock_stripe, mock_settings, api_client, menu_setup):
         mock_settings.STRIPE_SECRET_KEY = "sk_test_fake_key"
         mock_intent = MagicMock()
@@ -290,7 +290,7 @@ class TestCreatePayment:
         assert call_kwargs["amount"] == 2178
         assert call_kwargs["currency"] == "usd"
 
-    @patch("orders.views.stripe")
+    @patch("orders.services.stripe")
     def test_create_payment_no_items_rejected(self, mock_stripe, api_client, menu_setup):
         response = api_client.post(
             "/api/order/payment-test/create-payment/",
@@ -303,8 +303,8 @@ class TestCreatePayment:
 
 @pytest.mark.django_db
 class TestStripeWebhook:
-    @patch("orders.views.stripe.Webhook.construct_event")
-    @patch("orders.views.broadcast_order_to_kitchen")
+    @patch("orders.services.stripe.Webhook.construct_event")
+    @patch("orders.services.broadcast_order_to_kitchen")
     def test_payment_succeeded_confirms_order(self, mock_broadcast, mock_construct, api_client):
         order = OrderFactory(
             status="pending_payment",
@@ -330,7 +330,7 @@ class TestStripeWebhook:
         assert order.payment_status == "paid"
         mock_broadcast.assert_called_once_with(order)
 
-    @patch("orders.views.stripe.Webhook.construct_event")
+    @patch("orders.services.stripe.Webhook.construct_event")
     def test_payment_failed_updates_status(self, mock_construct, api_client):
         order = OrderFactory(
             status="pending_payment",
@@ -355,7 +355,7 @@ class TestStripeWebhook:
         assert order.payment_status == "failed"
         assert order.status == "pending_payment"
 
-    @patch("orders.views.stripe.Webhook.construct_event")
+    @patch("orders.services.stripe.Webhook.construct_event")
     def test_invalid_signature_rejected(self, mock_construct, api_client):
         mock_construct.side_effect = stripe.error.SignatureVerificationError("bad sig", "sig_header")
 

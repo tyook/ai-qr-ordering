@@ -15,7 +15,7 @@ class TestAppleAuth:
         "name": "",
     }
 
-    @patch("customers.views.verify_apple_token")
+    @patch("customers.services.verify_apple_token")
     def test_apple_login_new_user(self, mock_verify, api_client):
         mock_verify.return_value = self.MOCK_APPLE_USER
         resp = api_client.post(
@@ -34,7 +34,7 @@ class TestAppleAuth:
         assert customer.auth_provider_id == "apple-user-456"
         assert customer.name == "Bob Jones"
 
-    @patch("customers.views.verify_apple_token")
+    @patch("customers.services.verify_apple_token")
     def test_apple_login_existing_user(self, mock_verify, api_client):
         mock_verify.return_value = self.MOCK_APPLE_USER
         CustomerFactory(email="bob@icloud.com", name="Bob")
@@ -48,7 +48,7 @@ class TestAppleAuth:
         assert resp.status_code == 200
         assert Customer.objects.filter(email="bob@icloud.com").count() == 1
 
-    @patch("customers.views.verify_apple_token")
+    @patch("customers.services.verify_apple_token")
     def test_apple_login_invalid_token(self, mock_verify, api_client):
         mock_verify.side_effect = ValueError("Invalid token")
         resp = api_client.post(
@@ -64,7 +64,7 @@ class TestAppleAuth:
         resp = api_client.post("/api/customer/auth/apple/", {}, format="json")
         assert resp.status_code == 400
 
-    @patch("customers.views.verify_apple_token")
+    @patch("customers.services.verify_apple_token")
     def test_apple_login_fallback_name(self, mock_verify, api_client):
         """When no name is provided, use email prefix as display name."""
         mock_verify.return_value = self.MOCK_APPLE_USER
