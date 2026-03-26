@@ -1,59 +1,73 @@
 import { create } from "zustand";
-import { apiFetch } from "@/lib/api";
+import type { User } from "@/types";
 
 interface AuthState {
-  isAuthenticated: boolean;
-  user: { id: string; email: string; first_name: string; last_name: string } | null;
+  isAuthenticated: boolean | null;
+  user: User | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: {
     email: string;
     password: string;
-    first_name: string;
-    last_name: string;
+    first_name?: string;
+    last_name?: string;
+    name?: string;
+    phone?: string;
+    link_order_id?: string;
   }) => Promise<void>;
-  logout: () => void;
-  checkAuth: () => boolean;
+  googleLogin: (token: string, linkOrderId?: string) => Promise<void>;
+  appleLogin: (token: string, name?: string, linkOrderId?: string) => Promise<void>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<boolean>;
+  clearAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated:
-    typeof window !== "undefined" && !!localStorage.getItem("access_token"),
+  isAuthenticated: null,
   user: null,
 
   login: async (email, password) => {
-    const data = await apiFetch<{ access: string; refresh: string }>(
-      "/api/auth/login/",
-      {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      }
-    );
-    localStorage.setItem("access_token", data.access);
-    localStorage.setItem("refresh_token", data.refresh);
-    set({ isAuthenticated: true });
-  },
-
-  register: async (formData) => {
-    const data = await apiFetch<{
-      access: string;
-      refresh: string;
-      user: { id: string; email: string; first_name: string; last_name: string };
-    }>("/api/auth/register/", {
-      method: "POST",
-      body: JSON.stringify(formData),
-    });
-    localStorage.setItem("access_token", data.access);
-    localStorage.setItem("refresh_token", data.refresh);
+    const { login } = await import("@/lib/api");
+    const data = await login(email, password);
     set({ isAuthenticated: true, user: data.user });
   },
 
-  logout: () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+  register: async (formData) => {
+    const { register } = await import("@/lib/api");
+    const data = await register(formData);
+    set({ isAuthenticated: true, user: data.user });
+  },
+
+  googleLogin: async (token, linkOrderId) => {
+    const { googleAuth } = await import("@/lib/api");
+    const data = await googleAuth(token, linkOrderId);
+    set({ isAuthenticated: true, user: data.user });
+  },
+
+  appleLogin: async (token, name, linkOrderId) => {
+    const { appleAuth } = await import("@/lib/api");
+    const data = await appleAuth(token, name, linkOrderId);
+    set({ isAuthenticated: true, user: data.user });
+  },
+
+  logout: async () => {
+    const { logout } = await import("@/lib/api");
+    await logout().catch(() => {});
     set({ isAuthenticated: false, user: null });
   },
 
-  checkAuth: () => {
-    return !!localStorage.getItem("access_token");
+  checkAuth: async () => {
+    try {
+      const { fetchMe } = await import("@/lib/api");
+      const user = await fetchMe();
+      set({ isAuthenticated: true, user });
+      return true;
+    } catch {
+      set({ isAuthenticated: false, user: null });
+      return false;
+    }
+  },
+
+  clearAuth: () => {
+    set({ isAuthenticated: false, user: null });
   },
 }));
