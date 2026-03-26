@@ -161,3 +161,36 @@ class ConnectedAccount(models.Model):
 
     def __str__(self):
         return f"ConnectedAccount({self.restaurant.name}, {self.stripe_account_id})"
+
+
+class Payout(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending"
+        IN_TRANSIT = "in_transit"
+        COMPLETED = "completed"
+        FAILED = "failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    restaurant = models.ForeignKey(
+        Restaurant, on_delete=models.CASCADE, related_name="payouts"
+    )
+    stripe_transfer_id = models.CharField(max_length=255, unique=True)
+    stripe_payout_id = models.CharField(max_length=255, null=True, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default="usd")
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    fee_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    fee_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0)
+    fee_fixed = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    orders_count = models.PositiveIntegerField()
+    period_start = models.DateField()
+    period_end = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Payout({self.restaurant.name}, {self.amount} {self.currency}, {self.status})"

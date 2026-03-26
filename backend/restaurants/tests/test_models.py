@@ -4,7 +4,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
-from restaurants.models import ConnectedAccount, MenuCategory, MenuItem, MenuItemModifier, MenuItemVariant, Restaurant, RestaurantStaff
+from restaurants.models import ConnectedAccount, MenuCategory, MenuItem, MenuItemModifier, MenuItemVariant, Payout, Restaurant, RestaurantStaff
 from restaurants.tests.factories import (
     MenuItemVariantFactory,
     UserFactory,
@@ -139,6 +139,43 @@ class TestConnectedAccount:
                 restaurant=restaurant,
                 stripe_account_id="acct_test456",
             )
+
+
+@pytest.mark.django_db
+class TestPayout:
+    @pytest.fixture
+    def restaurant(self):
+        owner = User.objects.create_user(email="payoutowner@example.com", password="testpass123")
+        return Restaurant.objects.create(name="Payout Test", slug="payout-test", owner=owner)
+
+    def test_create_payout(self, restaurant):
+        payout = Payout.objects.create(
+            restaurant=restaurant,
+            stripe_transfer_id="tr_test123",
+            amount=150.00,
+            currency="usd",
+            orders_count=5,
+            period_start="2026-03-25",
+            period_end="2026-03-25",
+        )
+        assert payout.status == "pending"
+        assert payout.fee_amount == 0
+        assert payout.fee_rate == 0
+        assert payout.fee_fixed == 0
+        assert payout.stripe_payout_id is None
+
+    def test_payout_status_choices(self, restaurant):
+        payout = Payout.objects.create(
+            restaurant=restaurant,
+            stripe_transfer_id="tr_test456",
+            amount=100.00,
+            currency="usd",
+            status="in_transit",
+            orders_count=3,
+            period_start="2026-03-25",
+            period_end="2026-03-25",
+        )
+        assert payout.status == "in_transit"
 
 
 @pytest.mark.django_db
