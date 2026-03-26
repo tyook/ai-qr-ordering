@@ -33,6 +33,7 @@ The existing Order model has statuses: `pending_payment`, `pending`, `confirmed`
 | `completed_at` | DateTimeField, nullable | Set when status moves to `completed` |
 
 These timestamps power historical wait time calculations. They must be set in **all code paths** that change order status — not just `update_order_status()`. Specifically:
+- `create_order()` — defaults to `confirmed` status, so must set `confirmed_at` when `order_status="confirmed"`
 - `update_order_status()` — for kitchen-driven status changes (confirmed → preparing → ready → completed)
 - `confirm_payment()` and `_handle_payment_succeeded()` in `services.py` — these set status to `confirmed` directly, so they must also set `confirmed_at`
 
@@ -61,7 +62,11 @@ All Redis keys use a TTL of 10 minutes (slightly longer than the 5-minute refres
 
 ### Methods
 
-- **`get_queue_position(order)`** — Counts orders for that restaurant with status in (`confirmed`, `preparing`) and `confirmed_at` before this order's `confirmed_at`. Uses `confirmed_at` (not `created_at`) to reflect actual queue entry time — orders that pay faster enter the queue first. Returns 1-based integer position.
+- **`get_queue_position(order)`** — Counts orders for that restaurant with status in (`confirmed`, `preparing`) and `confirmed_at` before this order's `confirmed_at`. Uses `confirmed_at` (not `created_at`) to reflect actual queue entry time — orders that pay faster enter the queue first. Orders with NULL `confirmed_at` are excluded from the count. Returns 1-based integer position.
+
+### Data migration
+
+A one-time migration backfills `confirmed_at = created_at` for all existing orders in `confirmed` or `preparing` status. This ensures the queue is populated correctly at deployment time for restaurants with in-flight orders.
 
 - **`get_estimated_wait(restaurant, queue_position)`** — If cached completed order count >= 50, uses cached `avg_prep_time * queue_position`. Otherwise, uses `estimated_minutes_per_order * queue_position`. Returns minutes as integer. Note: this is a known simplification that treats orders as sequential. Kitchens process orders in parallel, so actual wait times will be shorter. This is acceptable for v1 — estimates are conservative, and historical averages will naturally account for parallelism once enough data exists.
 
@@ -86,7 +91,7 @@ All Redis keys use a TTL of 10 minutes (slightly longer than the 5-minute refres
 
 This task lives in `backend/orders/tasks.py` alongside existing Celery tasks. It only refreshes cached averages. Real-time queue position updates are pushed instantly via WebSocket when kitchen staff changes order status.
 
-**`broadcast_queue_updates(restaurant_id, changed_order_id)`** — Celery task in `backend/orders/tasks.py`. Triggered on each order status change. Recalculates and pushes queue positions to all affected customer WebSocket groups. Runs asynchronously to avoid blocking kitchen staff responses. Uses `apply_async(countdown=2)` to debounce — if kitchen staff updates multiple orders in quick succession, rapid-fire fan-outs are coalesced by the 2-second delay.
+**`broadcast_queue_updates(restaurant_id, changed_order_id)`** — Celery task in `backend/orders/tasks.py`. Triggered on each order status change. Recalculates and pushes queue positions to all affected customer WebSocket groups. Runs asynchronously to avoid blocking kitchen staff responses. Uses a Redis-based deduplication key (`queue_broadcast:{restaurant_id}`) with a 2-second TTL. If a broadcast is already pending for this restaurant, the new trigger is skipped. This coalesces rapid-fire fan-outs when kitchen staff updates multiple orders in quick succession.
 
 Note: `backend/orders/tasks.py` is a **new file** — no existing Celery tasks live in the orders app. The payout task lives in a separate app.
 
@@ -139,7 +144,7 @@ Response:
 
 Extend `broadcast_order_to_kitchen()` to also:
 1. Push update to `customer_{order_id}` group for the changed order
-2. Offload fan-out to a **Celery task** (`broadcast_queue_updates`): recalculate and push updated queue positions to all customers with active orders at that restaurant (status `confirmed` or `preparing`, `created_at` after the changed order). This keeps the kitchen staff's status update response fast.
+2. Offload fan-out to a **Celery task** (`broadcast_queue_updates`): recalculate and push updated queue positions to all customers with active orders at that restaurant (status `confirmed` or `preparing`, `confirmed_at` after the changed order's `confirmed_at`). This keeps the kitchen staff's status update response fast.
 3. Skip orders already in `ready` or `completed` status
 
 ### Polling fallback
