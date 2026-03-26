@@ -87,6 +87,10 @@ class Order(models.Model):
     customer_allergies = models.JSONField(default=list, blank=True, help_text="Snapshot of customer allergies at time of order")
 
     created_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    preparing_at = models.DateTimeField(null=True, blank=True)
+    ready_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
