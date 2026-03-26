@@ -208,6 +208,17 @@ class StripeWebhookView(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
+class StripeConnectWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        result = OrderService.handle_stripe_connect_webhook(
+            request.body, request.META.get("HTTP_STRIPE_SIGNATURE", "")
+        )
+        return Response(result)
+
+
 class KitchenOrderUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 

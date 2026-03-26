@@ -489,6 +489,8 @@ class OrderService:
             "customer.subscription.updated": OrderService._handle_subscription_updated,
             "customer.subscription.deleted": OrderService._handle_subscription_deleted,
             "invoice.paid": OrderService._handle_invoice_paid,
+            "transfer.created": OrderService._handle_transfer_created,
+            "transfer.failed": OrderService._handle_transfer_failed,
         }.get(event_type)
 
         if handler:
@@ -586,6 +588,117 @@ class OrderService:
             sub.save(update_fields=["status"])
         except Subscription.DoesNotExist:
             pass
+
+    @staticmethod
+    def _handle_account_updated(data):
+        from restaurants.models import ConnectedAccount
+
+        account_obj = data["object"]
+        account_id = account_obj["id"]
+
+        try:
+            account = ConnectedAccount.objects.get(stripe_account_id=account_id)
+            account.payouts_enabled = account_obj.get("payouts_enabled", False)
+            account.charges_enabled = account_obj.get("charges_enabled", False)
+            account.onboarding_complete = account_obj.get("details_submitted", False)
+            account.save(update_fields=[
+                "payouts_enabled", "charges_enabled", "onboarding_complete", "updated_at"
+            ])
+        except ConnectedAccount.DoesNotExist:
+            logger.warning(f"ConnectedAccount not found for {account_id}")
+
+    @staticmethod
+    def _handle_transfer_created(data):
+        from restaurants.models import Payout
+
+        transfer_id = data["object"]["id"]
+        Payout.objects.filter(stripe_transfer_id=transfer_id).update(
+            status="in_transit"
+        )
+
+    @staticmethod
+    def _handle_transfer_failed(data):
+        from restaurants.models import Payout
+
+        transfer_id = data["object"]["id"]
+        payout = Payout.objects.filter(stripe_transfer_id=transfer_id).first()
+        if payout:
+            payout.status = "failed"
+            payout.save(update_fields=["status"])
+            payout.orders.update(payout_status="pending", payout=None)
+
+    @staticmethod
+    def _handle_payout_paid(data):
+        from restaurants.models import ConnectedAccount, Payout
+
+        payout_obj = data["object"]
+        stripe_payout_id = payout_obj["id"]
+        amount_cents = payout_obj["amount"]
+        account_id = data.get("account") or payout_obj.get("account")
+
+        try:
+            account = ConnectedAccount.objects.get(stripe_account_id=account_id)
+        except ConnectedAccount.DoesNotExist:
+            logger.warning(f"ConnectedAccount not found for payout event: {account_id}")
+            return
+
+        payout = Payout.objects.filter(
+            restaurant=account.restaurant,
+            status="in_transit",
+            amount=Decimal(amount_cents) / 100,
+        ).order_by("created_at").first()
+
+        if payout:
+            payout.status = "completed"
+            payout.stripe_payout_id = stripe_payout_id
+            payout.save(update_fields=["status", "stripe_payout_id"])
+            payout.orders.update(payout_status="paid_out")
+
+    @staticmethod
+    def _handle_payout_failed(data):
+        from restaurants.models import ConnectedAccount, Payout
+
+        payout_obj = data["object"]
+        account_id = data.get("account") or payout_obj.get("account")
+        amount_cents = payout_obj["amount"]
+
+        try:
+            account = ConnectedAccount.objects.get(stripe_account_id=account_id)
+        except ConnectedAccount.DoesNotExist:
+            return
+
+        payout = Payout.objects.filter(
+            restaurant=account.restaurant,
+            status="in_transit",
+            amount=Decimal(amount_cents) / 100,
+        ).order_by("created_at").first()
+
+        if payout:
+            payout.status = "failed"
+            payout.save(update_fields=["status"])
+
+    @staticmethod
+    def handle_stripe_connect_webhook(payload, sig_header):
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, settings.STRIPE_CONNECT_WEBHOOK_SECRET
+            )
+        except (ValueError, stripe.error.SignatureVerificationError):
+            raise ValidationError("Invalid webhook signature")
+
+        handler_name = {
+            "account.updated": "_handle_account_updated",
+            "payout.paid": "_handle_payout_paid",
+            "payout.failed": "_handle_payout_failed",
+        }.get(event["type"])
+
+        if handler_name:
+            handler = getattr(OrderService, handler_name)
+            data = event["data"]
+            data["account"] = event.get("account")
+            handler(data)
+
+        return {"status": "ok"}
 
     @staticmethod
     def _handle_invoice_paid(invoice: dict) -> None:

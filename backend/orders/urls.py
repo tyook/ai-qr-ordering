@@ -9,6 +9,7 @@ from orders.views import (
     ParseOrderView,
     PublicMenuView,
     SaveCardConsentView,
+    StripeConnectWebhookView,
     StripeWebhookView,
 )
 
@@ -34,4 +35,5 @@ urlpatterns = [
         name="kitchen-order-update",
     ),
     path("webhooks/stripe/", StripeWebhookView.as_view(), name="stripe-webhook"),
+    path("webhooks/stripe-connect/", StripeConnectWebhookView.as_view(), name="stripe-connect-webhook"),
 ]
