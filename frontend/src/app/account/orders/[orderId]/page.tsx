@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useAuthStore } from "@/stores/auth-store";
+import { useRequireAuth } from "@/hooks/use-auth";
 import { useOrderDetail } from "@/hooks/use-orders";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -30,25 +29,19 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const params = useParams();
   const orderId = params.orderId as string;
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const isAuthenticated = useRequireAuth();
   const { data: order, isLoading, error } = useOrderDetail(orderId);
 
-  useEffect(() => {
-    if (!checkAuth()) {
-      router.push("/account/login");
-    }
-  }, [checkAuth, router]);
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   if (error || !order) {

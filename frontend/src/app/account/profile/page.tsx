@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useAuthStore } from "@/stores/auth-store";
+import { useRequireAuth } from "@/hooks/use-auth";
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile";
 import { usePreferencesStore } from "@/stores/preferences-store";
 import { useToast } from "@/hooks/use-toast";
@@ -36,14 +35,14 @@ const PREDEFINED_ALLERGIES = [
 ];
 
 export default function CustomerProfilePage() {
-  const router = useRouter();
+  const isAuthenticated = useRequireAuth();
   const { toast } = useToast();
-  const { isAuthenticated, checkAuth } = useAuthStore();
   const { data: profile, isLoading, error } = useProfile();
   const updateProfileMutation = useUpdateProfile();
   const { setPreferredLanguage, setAllergyNote } = usePreferencesStore();
 
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([]);
   const [allergies, setAllergies] = useState<string[]>([]);
@@ -52,14 +51,9 @@ export default function CustomerProfilePage() {
   const [customAllergyInput, setCustomAllergyInput] = useState("");
 
   useEffect(() => {
-    if (!checkAuth()) {
-      router.push("/account/login");
-    }
-  }, [checkAuth, router]);
-
-  useEffect(() => {
     if (profile) {
-      setName(profile.name);
+      setFirstName(profile.first_name || "");
+      setLastName(profile.last_name || "");
       setPhone(profile.phone || "");
       setDietaryPreferences(profile.dietary_preferences || []);
       setAllergies(profile.allergies || []);
@@ -67,16 +61,16 @@ export default function CustomerProfilePage() {
     }
   }, [profile]);
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   if (error) {
@@ -129,7 +123,8 @@ export default function CustomerProfilePage() {
   const handleSave = async () => {
     try {
       await updateProfileMutation.mutateAsync({
-        name,
+        first_name: firstName,
+        last_name: lastName,
         phone,
         dietary_preferences: dietaryPreferences,
         allergies,
@@ -173,14 +168,25 @@ export default function CustomerProfilePage() {
               />
               <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
             </div>
-            <div>
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="first-name">First Name</Label>
+                <Input
+                  id="first-name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="last-name">Last Name</Label>
+                <Input
+                  id="last-name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="phone">Phone</Label>

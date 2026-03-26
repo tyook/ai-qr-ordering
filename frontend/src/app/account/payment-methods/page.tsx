@@ -1,37 +1,28 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useCustomerAuthStore } from "@/stores/customer-auth-store";
+import { useRequireAuth } from "@/hooks/use-auth";
 import {
   usePaymentMethods,
   useDeletePaymentMethod,
 } from "@/hooks/use-payment-methods";
 
 export default function PaymentMethodsPage() {
-  const router = useRouter();
-  const { isAuthenticated, checkAuth } = useCustomerAuthStore();
-  const { data: methods, isLoading, error, refetch } = usePaymentMethods();
+  const isAuthenticated = useRequireAuth();
+  const { data: methods, isLoading, error } = usePaymentMethods();
   const deleteMutation = useDeletePaymentMethod();
 
-  useEffect(() => {
-    if (!checkAuth()) {
-      router.push("/account/login");
-    }
-  }, [checkAuth, router]);
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   if (error) {
@@ -73,10 +64,7 @@ export default function PaymentMethodsPage() {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={async () => {
-                  await deleteMutation.mutate(method.id);
-                  refetch();
-                }}
+                onClick={() => deleteMutation.mutate(method.id)}
                 disabled={deleteMutation.isPending}
               >
                 {deleteMutation.isPending ? "Removing..." : "Remove"}
