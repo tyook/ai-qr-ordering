@@ -96,7 +96,7 @@ Stores a restaurant's POS integration configuration. One restaurant has at most 
 | updated_at | Datetime | Last update |
 
 **Notes:**
-- OAuth tokens are encrypted at rest using `django-fernet-fields` or similar.
+- OAuth tokens are encrypted at rest using manual Fernet wrapping via Python's `cryptography.fernet` module (the `django-fernet-fields` package is unmaintained). The Fernet encryption key is stored in an environment variable (`POS_ENCRYPTION_KEY`), not in the database. Key rotation: generate a new key, re-encrypt all tokens, swap the env var.
 - `external_location_id` is required because most POS systems are multi-location.
 - `payment_mode` drives payment flow branching: `stripe` means pay via Stripe and mark as paid externally in POS; `pos_collected` means skip Stripe and let the POS handle payment.
 
@@ -119,9 +119,15 @@ Tracks every attempt to push an order to a POS. Used for debugging, retry logic,
 
 ### Changes to Existing Order Model
 
+Add `pos_collected` to the existing `payment_status` choices (currently: `pending`, `paid`, `failed`, `refunded`). This new value means "payment is handled by the restaurant's POS, not Stripe."
+
+**Payout system interaction:** Orders with `payment_status = 'pos_collected'` must be excluded from the daily Stripe payout job, since Stripe never collected the funds. The payout system already filters on `payment_status = 'paid'`, so this works correctly by default — but this exclusion should be explicitly tested.
+
 Two new fields on `Order`:
-- `external_order_id` (String, nullable) — Denormalized from POSSyncLog for quick access.
-- `pos_sync_status` (Enum: not_applicable, pending, synced, retrying, failed, manually_resolved) — Quick status indicator without joining to POSSyncLog.
+- `external_order_id` (String, nullable, blank=True) — Denormalized from POSSyncLog for quick access.
+- `pos_sync_status` (Enum: not_applicable, pending, synced, retrying, failed, manually_resolved, default=not_applicable) — Quick status indicator without joining to POSSyncLog.
+
+**Migration:** Existing orders receive `pos_sync_status = 'not_applicable'` and `external_order_id = NULL` as defaults. This is safe since no POS integration exists prior to this feature.
 
 ---
 
@@ -188,7 +194,9 @@ class PushResult:
 
 ### Middleware Adapter (Fallback)
 
-A single adapter that speaks to a middleware platform (Deliverect or Otter). Covers the long tail of POS systems: Clover, Lightspeed, TouchBistro, Revel, etc.
+A single adapter that speaks to a middleware platform. Covers the long tail of POS systems: Clover, Lightspeed, TouchBistro, Revel, etc.
+
+**Vendor selection:** The specific middleware vendor (Deliverect, Otter, or ItsaCheckmate) must be evaluated and chosen as a prerequisite task before implementing this adapter. Evaluation criteria: POS coverage breadth, per-order pricing, API quality, and support for "paid externally" order status. The adapter interface is vendor-agnostic, so the `BasePOSAdapter` contract applies regardless of which vendor is selected.
 
 **Key differences:**
 - OAuth is with the middleware, not each POS vendor
@@ -202,10 +210,16 @@ A single adapter that speaks to a middleware platform (Deliverect or Otter). Cov
 
 ### Celery Task Flow
 
-When an order is confirmed (and paid, if using Stripe), a Celery task is enqueued:
+When an order reaches a terminal "ready to dispatch" state, a Celery task is enqueued. The dispatch is triggered from three code paths:
+
+1. **POS-collected mode:** `ConfirmOrderView` (line 33) — immediately after order creation with `status=confirmed`, since there's no payment step.
+2. **Stripe mode (inline payment):** `CreatePaymentView` (line 72) — after successful inline PaymentIntent confirmation (when `status` transitions from `pending_payment`).
+3. **Stripe mode (async payment):** `ConfirmPaymentView` (line 166) and the Stripe webhook handler in `StripeWebhookView` (line 201) — after payment confirmation.
+
+All three paths call `dispatch_order_to_pos.delay(order_id)` after the order is confirmed and (if applicable) paid.
 
 ```
-Order confirmed
+Order reaches dispatch-ready state
   -> dispatch_order_to_pos.delay(order_id)
   -> Task checks: does this restaurant have an active POSConnection?
       -> No  -> Set pos_sync_status = "not_applicable", done
@@ -279,9 +293,9 @@ Diner places order
 ```
 
 **Changes to existing order flow:**
-- `POST /api/order/<slug>/confirm/` gains awareness of payment mode. If `pos_collected`, it skips the payment step and immediately confirms the order.
-- New `payment_status` value: `pos_collected`.
-- Frontend: the existing `GET /api/order/<slug>/menu/` endpoint adds a `payment_mode` field. If `pos_collected`, the payment UI is replaced with "Your order has been sent. Please pay at the counter."
+- `ConfirmOrderView` (`POST /api/order/<slug>/confirm/`, views.py line 33) gains awareness of payment mode. When the restaurant's `POSConnection.payment_mode = 'pos_collected'`, this endpoint creates the order with `status=confirmed` and `payment_status=pos_collected`, bypassing the `CreatePaymentView` / `ConfirmPaymentView` flow entirely.
+- New `payment_status` value: `pos_collected` (added to Order model choices).
+- Frontend: the existing `GET /api/order/<slug>/menu/` (`PublicMenuView`) adds a `payment_mode` field to the response. If `pos_collected`, the frontend skips the Stripe payment UI and shows "Your order has been sent. Please pay at the counter."
 
 No POS connection details are exposed to the public endpoint.
 
@@ -349,13 +363,15 @@ PATCH  /api/restaurants/<id>/pos/sync-logs/<id>/       # Mark as manually_resolv
 
 For restaurants without a modern POS or middleware-compatible system.
 
-### Approach: Web-Based Print via Browser
+### Approach: Manual Print Button on Kitchen Display
 
-The kitchen WebSocket display (`/kitchen/[slug]`) already receives orders in real-time. Add an **auto-print** toggle:
+The kitchen WebSocket display (`/kitchen/[slug]`) already receives orders in real-time. Add a **"Print" button** on each order card:
 
-- When enabled, each incoming order triggers `window.print()` with print-optimized CSS (thermal receipt format: narrow, no margins, large text)
+- Clicking "Print" opens the browser's print dialog with a print-optimized CSS layout (thermal receipt format: narrow, no margins, large text)
 - The kitchen tablet/computer connects to a thermal printer via USB or network
-- Auto-print preference is stored in the browser's local storage
+- Uses `window.print()` which requires a user gesture (click) — fully supported across all browsers
+
+**Note:** Fully automatic printing (no click required) is not possible via standard browser APIs, as `window.print()` requires a user-initiated event. If auto-print is needed in the future, options include a dedicated Electron kiosk app or direct ESC/POS integration via the Web Serial API. These are out of scope for the initial implementation.
 
 ### Print Format
 
@@ -386,16 +402,27 @@ ESC/POS protocols require either a local agent on the restaurant's network or a 
 ## Infrastructure Dependencies
 
 - **Celery + django-celery-beat:** Shared with the payout system design. Required for async POS dispatch and retry scheduling.
-- **django-fernet-fields (or similar):** For encrypting OAuth tokens at rest.
+- **cryptography (Python package):** For Fernet encryption of OAuth tokens at rest. Already a transitive dependency of many packages; add as explicit dependency.
 - **Square SDK:** `squareup` Python package for Square API.
-- **Toast API client:** HTTP client (no official Python SDK; use `httpx` or `requests`).
-- **Middleware SDK:** Depends on chosen provider (Deliverect/Otter).
+- **Toast API client:** HTTP client (no official Python SDK; use `httpx`).
+- **Middleware SDK:** Depends on chosen vendor (evaluation is a prerequisite task; see Middleware Adapter section).
 
 ## Launch Order
 
 1. **Square adapter** — Largest market share, fastest to build and get approved
 2. **Toast adapter** — Start partner application early (4-8 week approval), build adapter in parallel
 3. **Middleware fallback** — Evaluate Deliverect vs. Otter, integrate
-4. **Receipt printer fallback** — Browser-based auto-print on kitchen display
+4. **Receipt printer fallback** — Browser-based print button on kitchen display
 
 Work streams 1 and 2 can partially overlap (Toast partner application submitted while building Square adapter). Work stream 4 is independent and can be built at any time.
+
+---
+
+## Future Considerations (Out of Scope)
+
+These are explicitly deferred and not part of this design:
+
+- **POS webhooks (inbound):** Square and Toast support webhooks for order status updates (e.g., order completed on POS side). Bidirectional status sync could be added later.
+- **Rate limiting:** Square has rate limits (~1000 req/10s per location). During dinner rushes, adapter implementations should be aware of this. Specific rate-limit handling is an implementation detail.
+- **Internal alerting:** POSSyncLog handles per-restaurant visibility. Engineering-level alerting (e.g., if POS failure rate spikes across restaurants, indicating an API outage) is an operational concern to address during deployment.
+- **Auto-print via Electron/ESC/POS:** Direct printer integration for fully automatic printing without user interaction.
