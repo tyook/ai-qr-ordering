@@ -11,14 +11,16 @@ import { usePreferencesStore } from "@/stores/preferences-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useProfile } from "@/hooks/use-profile";
 import { useCreatePayment } from "@/hooks/use-create-payment";
+import { useConfirmOrder } from "@/hooks/use-confirm-order";
 import type { ConfirmOrderItem } from "@/types";
 
 interface ConfirmationStepProps {
   slug: string;
   taxRate: string;
+  paymentMode: "stripe" | "pos_collected";
 }
 
-export function ConfirmationStep({ slug, taxRate }: ConfirmationStepProps) {
+export function ConfirmationStep({ slug, taxRate, paymentMode }: ConfirmationStepProps) {
   const {
     parsedItems,
     parsedAllergies,
@@ -34,6 +36,7 @@ export function ConfirmationStep({ slug, taxRate }: ConfirmationStepProps) {
     setClientSecret,
     setCustomerName,
     setCustomerPhone,
+    setPaymentMode,
     removeItem,
     updateItemQuantity,
   } = useOrderStore();
@@ -41,6 +44,7 @@ export function ConfirmationStep({ slug, taxRate }: ConfirmationStepProps) {
   const { isAuthenticated } = useAuthStore();
   const { data: profile } = useProfile();
   const createPaymentMutation = useCreatePayment(slug);
+  const confirmOrderMutation = useConfirmOrder(slug);
 
   // Auto-fill name and phone if customer is logged in
   useEffect(() => {
@@ -64,20 +68,40 @@ export function ConfirmationStep({ slug, taxRate }: ConfirmationStepProps) {
       : [];
     const allAllergies = Array.from(new Set([...parsedAllergies, ...prefAllergies]));
 
-    createPaymentMutation.mutate(
-      { items, rawInput, tableIdentifier, language, customerName, customerPhone, allergies: allAllergies },
-      {
-        onSuccess: (result) => {
-          setOrderId(result.id);
-          setClientSecret(result.client_secret);
-          setStep("payment");
-        },
-        onError: (err) => {
-          setError(err instanceof Error ? err.message : "Failed to create payment");
-        },
-      }
-    );
+    if (paymentMode === "pos_collected") {
+      confirmOrderMutation.mutate(
+        { items, rawInput, tableIdentifier, language, customerName, customerPhone },
+        {
+          onSuccess: (result) => {
+            setOrderId(result.id);
+            setPaymentMode("pos_collected");
+            setStep("submitted");
+          },
+          onError: (err) => {
+            setError(err instanceof Error ? err.message : "Failed to place order");
+          },
+        }
+      );
+    } else {
+      createPaymentMutation.mutate(
+        { items, rawInput, tableIdentifier, language, customerName, customerPhone, allergies: allAllergies },
+        {
+          onSuccess: (result) => {
+            setOrderId(result.id);
+            setClientSecret(result.client_secret);
+            setStep("payment");
+          },
+          onError: (err) => {
+            setError(err instanceof Error ? err.message : "Failed to create payment");
+          },
+        }
+      );
+    }
   };
+
+  const isSubmitting = paymentMode === "pos_collected"
+    ? confirmOrderMutation.isPending
+    : createPaymentMutation.isPending;
 
   if (parsedItems.length === 0) {
     return (
@@ -209,9 +233,11 @@ export function ConfirmationStep({ slug, taxRate }: ConfirmationStepProps) {
         <Button
           className="flex-1"
           onClick={handleConfirm}
-          disabled={createPaymentMutation.isPending || !customerName.trim()}
+          disabled={isSubmitting || !customerName.trim()}
         >
-          {createPaymentMutation.isPending ? "Setting up payment..." : "Place Order"}
+          {isSubmitting
+            ? (paymentMode === "pos_collected" ? "Placing order..." : "Setting up payment...")
+            : "Place Order"}
         </Button>
       </div>
     </div>

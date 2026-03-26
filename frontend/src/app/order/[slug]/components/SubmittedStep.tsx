@@ -11,7 +11,7 @@ import { useOrderStore } from "@/stores/order-store";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function SubmittedStep() {
-  const { orderId, tableIdentifier, customerName, customerPhone } = useOrderStore();
+  const { orderId, tableIdentifier, customerName, customerPhone, paymentMode } = useOrderStore();
   const { isAuthenticated, register } = useAuthStore();
 
   const [showRegister, setShowRegister] = useState(false);
@@ -56,6 +56,11 @@ export function SubmittedStep() {
         )}
         <p className="text-sm text-muted-foreground mt-4">
           Your order has been sent to the kitchen.
+          {paymentMode === "pos_collected" && (
+            <span className="block mt-1 font-medium text-foreground">
+              Please pay at the counter.
+            </span>
+          )}
         </p>
       </div>
 

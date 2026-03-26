@@ -16,6 +16,7 @@ interface OrderState {
   customerPhone: string;
   error: string | null;
   clientSecret: string | null;
+  paymentMode: "stripe" | "pos_collected";
 
   // Actions
   setStep: (step: OrderStep) => void;
@@ -29,6 +30,7 @@ interface OrderState {
   setCustomerPhone: (phone: string) => void;
   setError: (error: string | null) => void;
   setClientSecret: (secret: string | null) => void;
+  setPaymentMode: (mode: "stripe" | "pos_collected") => void;
   reset: () => void;
 }
 
@@ -45,6 +47,7 @@ const initialState = {
   customerPhone: "",
   error: null,
   clientSecret: null,
+  paymentMode: "stripe" as "stripe" | "pos_collected",
 };
 
 export const useOrderStore = create<OrderState>((set) => ({
@@ -81,5 +84,6 @@ export const useOrderStore = create<OrderState>((set) => ({
   setCustomerPhone: (customerPhone) => set({ customerPhone }),
   setError: (error) => set({ error }),
   setClientSecret: (clientSecret) => set({ clientSecret }),
+  setPaymentMode: (paymentMode) => set({ paymentMode }),
   reset: () => set(initialState),
 }));

@@ -78,6 +78,7 @@ export interface MenuCategory {
 export interface PublicMenu {
   restaurant_name: string;
   tax_rate: string;
+  payment_mode: "stripe" | "pos_collected";
   categories: MenuCategory[];
 }
 
