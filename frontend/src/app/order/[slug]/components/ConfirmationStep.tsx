@@ -11,6 +11,7 @@ import { usePreferencesStore } from "@/stores/preferences-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useProfile } from "@/hooks/use-profile";
 import { useCreatePayment } from "@/hooks/use-create-payment";
+import { BusynessBanner } from "./BusynessBanner";
 import type { ConfirmOrderItem } from "@/types";
 
 interface ConfirmationStepProps {
@@ -92,6 +93,7 @@ export function ConfirmationStep({ slug, taxRate }: ConfirmationStepProps) {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
+      <BusynessBanner slug={slug} />
       <h2 className="text-xl font-semibold mb-4">Confirm Your Order</h2>
 
       <div className="space-y-3 mb-6">
