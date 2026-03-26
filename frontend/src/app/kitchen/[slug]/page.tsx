@@ -24,16 +24,21 @@ export default function KitchenPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, checkAuth } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated === null) checkAuth();
+  }, [isAuthenticated, checkAuth]);
   const { orders, addOrUpdateOrder, setOrders } = useKitchenStore();
   const [authorized, setAuthorized] = useState(false);
 
-  const { data: restaurants, isLoading: checking } = useMyRestaurants(isAuthenticated);
+  const { data: restaurants, isLoading: checking } = useMyRestaurants(isAuthenticated ?? false);
   const advanceOrder = useAdvanceOrder();
 
   // Auth guard: verify user is owner/staff of this restaurant
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (isAuthenticated === null) return; // still checking
+    if (isAuthenticated === false) {
       router.replace("/");
       return;
     }
