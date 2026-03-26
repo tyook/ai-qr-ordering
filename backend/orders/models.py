@@ -47,6 +47,7 @@ class Order(models.Model):
         choices=[
             ("pending", "Pending"),
             ("paid", "Paid"),
+            ("pos_collected", "POS Collected"),
             ("failed", "Failed"),
             ("refunded", "Refunded"),
         ],
@@ -85,6 +86,21 @@ class Order(models.Model):
     paid_at = models.DateTimeField(null=True, blank=True)
 
     customer_allergies = models.JSONField(default=list, blank=True, help_text="Snapshot of customer allergies at time of order")
+
+    # POS Integration
+    external_order_id = models.CharField(max_length=255, blank=True, null=True, help_text="Order ID in external POS system")
+    pos_sync_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("not_applicable", "Not Applicable"),
+            ("pending", "Pending"),
+            ("synced", "Synced"),
+            ("retrying", "Retrying"),
+            ("failed", "Failed"),
+            ("manually_resolved", "Manually Resolved"),
+        ],
+        default="not_applicable",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
