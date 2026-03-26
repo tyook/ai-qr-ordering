@@ -46,6 +46,21 @@ class OrderPricing:
 class OrderService:
     """Service layer for order domain operations."""
 
+    STATUS_TIMESTAMP_FIELDS = {
+        "confirmed": "confirmed_at",
+        "preparing": "preparing_at",
+        "ready": "ready_at",
+        "completed": "completed_at",
+    }
+
+    @staticmethod
+    def set_status_timestamp(order: Order, status: str) -> None:
+        """Set the timestamp field corresponding to the given status."""
+        field = OrderService.STATUS_TIMESTAMP_FIELDS.get(status)
+        if field:
+            setattr(order, field, timezone.now())
+            order.save(update_fields=[field])
+
     # ── Item Validation & Pricing (shared by confirm + payment flows) ──
 
     @staticmethod
@@ -258,6 +273,9 @@ class OrderService:
             )
             order_item.modifiers.set(item_data["modifiers"])
 
+        if order_status == "confirmed":
+            OrderService.set_status_timestamp(order, "confirmed")
+
         return order
 
     # ── Subscription Check ─────────────────────────────────────────
@@ -423,6 +441,7 @@ class OrderService:
             order.refresh_from_db()
             if updated:
                 broadcast_order_to_kitchen(order)
+                OrderService.set_status_timestamp(order, "confirmed")
         elif intent.status in ("requires_payment_method", "canceled"):
             Order.objects.filter(
                 id=order.id, payment_status="pending"
@@ -458,6 +477,7 @@ class OrderService:
 
         order.status = new_status
         order.save()
+        OrderService.set_status_timestamp(order, new_status)
         broadcast_order_to_kitchen(order)
         return order
 
@@ -509,6 +529,8 @@ class OrderService:
         if updated:
             order.refresh_from_db()
             broadcast_order_to_kitchen(order)
+            order.refresh_from_db()
+            OrderService.set_status_timestamp(order, "confirmed")
 
     @staticmethod
     def _handle_payment_failed(intent: dict) -> None:
