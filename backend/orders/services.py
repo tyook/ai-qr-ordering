@@ -744,12 +744,21 @@ class OrderService:
             .order_by("sort_order")
         )
 
+        # Determine payment mode from POS connection
+        from integrations.models import POSConnection
+        try:
+            pos_conn = POSConnection.objects.get(restaurant=restaurant, is_active=True)
+            payment_mode = pos_conn.payment_mode
+        except POSConnection.DoesNotExist:
+            payment_mode = "stripe"
+
         return {
             "restaurant_name": restaurant.name,
             "tax_rate": str(restaurant.tax_rate),
             "categories": PublicMenuCategorySerializer(
                 categories, many=True
             ).data,
+            "payment_mode": payment_mode,
         }
 
     @staticmethod

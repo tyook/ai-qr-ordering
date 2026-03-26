@@ -3,6 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from integrations.models import POSConnection
 from integrations.tasks import dispatch_order_to_pos
 from orders.models import Order
 from orders.serializers import ConfirmOrderSerializer, OrderResponseSerializer, ParseInputSerializer
@@ -46,12 +47,22 @@ class ConfirmOrderView(APIView):
         )
         user = OrderService.resolve_user_from_request(request)
 
+        # Determine payment mode from POS connection
+        try:
+            pos_connection = POSConnection.objects.get(restaurant=restaurant, is_active=True)
+            payment_mode = pos_connection.payment_mode
+        except POSConnection.DoesNotExist:
+            payment_mode = "stripe"
+
+        payment_status = "pos_collected" if payment_mode == "pos_collected" else "pending"
+
         order = OrderService.create_order(
             restaurant,
             validated_items,
             pricing,
             user=user,
             order_status="confirmed",
+            payment_status=payment_status,
             raw_input=data["raw_input"],
             parsed_json=request.data,
             language=data.get("language", "en"),
@@ -63,7 +74,12 @@ class ConfirmOrderView(APIView):
         from orders.broadcast import broadcast_order_to_kitchen
 
         broadcast_order_to_kitchen(order)
-        dispatch_order_to_pos.delay(str(order.id))
+
+        # POS dispatch — only for pos_collected orders, which skip the payment
+        # flow entirely. Stripe-mode orders are dispatched after payment
+        # confirmation (from ConfirmPaymentView / StripeWebhookView).
+        if payment_mode == "pos_collected":
+            dispatch_order_to_pos.delay(str(order.id))
 
         return Response(
             OrderResponseSerializer(order).data,
