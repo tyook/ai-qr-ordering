@@ -2987,42 +2987,85 @@ payment_mode: "stripe" | "pos_collected";
 
 The menu hook (`frontend/src/hooks/use-menu.ts`) already returns this data from the API — no hook changes needed if the type is updated.
 
-- [ ] **Step 2: Add payment mode branching to order page**
+- [ ] **Step 2: Skip the payment step for pos_collected restaurants**
 
-In `frontend/src/app/order/[slug]/page.tsx`, the order flow uses a step-based state machine. The relevant lines are:
+The approach: when `payment_mode === "pos_collected"`, the `ConfirmationStep` should call a different API endpoint (confirm without payment) and transition directly to `"submitted"` instead of `"payment"`. No changes needed to `page.tsx` rendering — the step simply skips "payment" entirely.
+
+**Modify `frontend/src/app/order/[slug]/components/ConfirmationStep.tsx`:**
+
+The component currently calls `createPaymentMutation.mutate()` on line 67, and on success transitions to `setStep("payment")` on line 73. Add a `paymentMode` prop and branch the confirm logic:
+
+1. Add `paymentMode` to the `ConfirmationStepProps` interface (line 16):
 
 ```typescript
-// line 79: confirmation step (where user reviews order)
-{step === "confirmation" && <ConfirmationStep slug={slug} taxRate={menu.tax_rate} />}
-// line 80: payment step (Stripe payment form)
-{step === "payment" && <PaymentStep taxRate={menu.tax_rate} />}
-// line 81: submitted step (success message)
-{step === "submitted" && <SubmittedStep />}
+interface ConfirmationStepProps {
+  slug: string;
+  taxRate: string;
+  paymentMode: "stripe" | "pos_collected";
+}
 ```
 
-Replace the `step === "payment"` block (line 80) with a conditional:
+2. In `handleConfirm()` (line 52), add a branch for pos_collected mode. When `paymentMode === "pos_collected"`, call the existing `confirmOrder` API (which creates the order without Stripe payment) and transition to `"submitted"`:
 
 ```typescript
-{step === "payment" && (
-  menu.payment_mode === "pos_collected" ? (
-    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-      <div className="rounded-full bg-green-100 p-4">
-        <CheckCircle className="h-8 w-8 text-green-600" />
-      </div>
-      <h2 className="text-xl font-semibold">Order Sent!</h2>
-      <p className="text-muted-foreground">
-        Your order has been sent to the kitchen. Please pay at the counter.
-      </p>
-    </div>
-  ) : (
-    <PaymentStep taxRate={menu.tax_rate} />
-  )
+import { useConfirmOrder } from "@/hooks/use-confirm-order";
+
+// Inside the component:
+const confirmOrderMutation = useConfirmOrder(slug);
+
+const handleConfirm = () => {
+  const items: ConfirmOrderItem[] = parsedItems.map((item) => ({
+    menu_item_id: item.menu_item_id,
+    variant_id: item.variant.id,
+    quantity: item.quantity,
+    modifier_ids: item.modifiers.map((m) => m.id),
+    special_requests: item.special_requests,
+  }));
+
+  const prefAllergies = allergyNote
+    ? allergyNote.split(",").map((a) => a.trim()).filter(Boolean)
+    : [];
+  const allAllergies = Array.from(new Set([...parsedAllergies, ...prefAllergies]));
+
+  if (paymentMode === "pos_collected") {
+    // Skip Stripe — just confirm the order
+    confirmOrderMutation.mutate(
+      { items, rawInput, tableIdentifier, language, customerName, customerPhone, allergies: allAllergies },
+      {
+        onSuccess: (result) => {
+          setOrderId(result.id);
+          setStep("submitted");  // Skip payment, go directly to submitted
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : "Failed to confirm order");
+        },
+      }
+    );
+  } else {
+    // Existing Stripe payment flow
+    createPaymentMutation.mutate(
+      { items, rawInput, tableIdentifier, language, customerName, customerPhone, allergies: allAllergies },
+      {
+        onSuccess: (result) => {
+          setOrderId(result.id);
+          setClientSecret(result.client_secret);
+          setStep("payment");
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : "Failed to create payment");
+        },
+      }
+    );
+  }
+};
+```
+
+3. In `frontend/src/app/order/[slug]/page.tsx`, pass `paymentMode` to `ConfirmationStep` (line 79):
+
+```typescript
+{step === "confirmation" && (
+  <ConfirmationStep slug={slug} taxRate={menu.tax_rate} paymentMode={menu.payment_mode ?? "stripe"} />
 )}
-```
-
-Add the `CheckCircle` import from `lucide-react` at the top of the file if not already present.
-
-Also update the order store's step transition: in the `ConfirmationStep` component (`frontend/src/app/order/[slug]/components/ConfirmationStep.tsx`), when the order is confirmed and `payment_mode === "pos_collected"`, the step should transition directly to "submitted" instead of "payment". Check how the step is advanced after order confirmation and add the conditional there.
 
 - [ ] **Step 3: Verify the flow**
 
@@ -3058,13 +3101,13 @@ Create `frontend/src/app/kitchen/[slug]/print.css`:
 ```css
 @media print {
   body * {
-    visibility: hidden;
+    display: none !important;
   }
-  .print-order,
-  .print-order * {
-    visibility: visible;
+  .print-receipt,
+  .print-receipt * {
+    display: block !important;
   }
-  .print-order {
+  .print-receipt {
     position: absolute;
     left: 0;
     top: 0;
@@ -3073,68 +3116,154 @@ Create `frontend/src/app/kitchen/[slug]/print.css`:
     font-size: 12px;
     padding: 4mm;
   }
-  .no-print {
-    display: none !important;
-  }
 }
 ```
 
-- [ ] **Step 2: Add print button to OrderCard component**
-
-In `frontend/src/app/kitchen/[slug]/components/OrderCard.tsx`, import the print CSS at the top of the file and add a "Print" button and hidden print template. Also import the print CSS in `page.tsx`.
+Import this CSS in `frontend/src/app/kitchen/[slug]/page.tsx` at the top:
 
 ```typescript
-const handlePrint = (orderId: string) => {
-  const printEl = document.getElementById(`print-order-${orderId}`);
-  if (!printEl) return;
-  printEl.classList.add("print-order");
-  const cleanup = () => {
-    printEl.classList.remove("print-order");
-    window.removeEventListener("afterprint", cleanup);
-  };
-  window.addEventListener("afterprint", cleanup);
-  window.print();
-};
-
-// In the JSX for each order card:
-<button
-  onClick={() => handlePrint(order.id)}
-  className="no-print text-xs text-gray-500 hover:text-gray-700"
->
-  Print
-</button>
-
-// Hidden print template for each order:
-<div id={`print-order-${order.id}`} className="hidden print:block">
-  <div className="text-center font-bold">{restaurantName}</div>
-  <div>ORDER #{order.id.slice(0, 8)}</div>
-  <div>Table: {order.table_identifier}</div>
-  <div>Time: {new Date(order.created_at).toLocaleTimeString()}</div>
-  <hr />
-  {order.items.map((item) => (
-    <div key={item.id}>
-      {item.quantity}x {item.name}
-      {item.modifiers?.map((mod) => (
-        <div key={mod} className="pl-4">+ {mod}</div>
-      ))}
-    </div>
-  ))}
-  {order.special_requests && (
-    <>
-      <hr />
-      <div>Special: {order.special_requests}</div>
-    </>
-  )}
-  <hr />
-  <div>
-    Payment: {order.payment_status === "pos_collected"
-      ? "Pay at counter"
-      : "Paid via Stripe"}
-  </div>
-</div>
+import "./print.css";
 ```
 
-Read the actual kitchen page component to adapt this to the existing component structure.
+- [ ] **Step 2: Add print button and receipt template to OrderCard**
+
+Modify `frontend/src/app/kitchen/[slug]/components/OrderCard.tsx` (84 lines). The component receives `order: OrderResponse` and renders a `<Card>`.
+
+Add the print handler function inside the component (before the return statement at line 30), a "Print" button in the card header (line 35 area, next to the order ID), and a hidden receipt template at the end of the `<Card>`:
+
+```typescript
+// frontend/src/app/kitchen/[slug]/components/OrderCard.tsx
+"use client";
+
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import type { OrderResponse } from "@/types";
+
+interface OrderCardProps {
+  order: OrderResponse;
+  onAdvance: (orderId: string) => void;
+}
+
+function timeSince(dateString: string): string {
+  const seconds = Math.floor(
+    (Date.now() - new Date(dateString).getTime()) / 1000
+  );
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
+const statusLabels: Record<string, string> = {
+  confirmed: "Start Preparing",
+  preparing: "Mark Ready",
+  ready: "Complete",
+};
+
+export function OrderCard({ order, onAdvance }: OrderCardProps) {
+  const handlePrint = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger the card's onClick (onAdvance)
+    const printEl = document.getElementById(`print-receipt-${order.id}`);
+    if (!printEl) return;
+    printEl.classList.add("print-receipt");
+    const cleanup = () => {
+      printEl.classList.remove("print-receipt");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+  };
+
+  return (
+    <Card
+      className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => onAdvance(order.id)}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <span className="font-bold text-sm">
+            #{order.id.slice(0, 8)}
+          </span>
+          {order.table_identifier && (
+            <Badge variant="outline" className="ml-2">
+              Table {order.table_identifier}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrint}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Print
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {timeSince(order.created_at)}
+          </span>
+        </div>
+      </div>
+
+      {order.customer_allergies?.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {order.customer_allergies.map((allergy) => (
+            <Badge key={allergy} variant="destructive" className="text-xs">
+              {allergy}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <ul className="text-sm space-y-1 mb-3">
+        {order.items.map((item) => (
+          <li key={item.id}>
+            {item.quantity}x {item.name} ({item.variant_label})
+            {item.special_requests && (
+              <span className="text-muted-foreground italic">
+                {" "}- {item.special_requests}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <div className="text-xs text-center text-primary font-medium">
+        Tap to {statusLabels[order.status] || "update"}
+      </div>
+
+      {/* Hidden receipt template — only visible during printing */}
+      <div id={`print-receipt-${order.id}`} style={{ display: "none" }}>
+        <div style={{ textAlign: "center", fontWeight: "bold" }}>
+          ORDER #{order.id.slice(0, 8)}
+        </div>
+        {order.table_identifier && <div>Table: {order.table_identifier}</div>}
+        <div>Time: {new Date(order.created_at).toLocaleTimeString()}</div>
+        <hr />
+        {order.items.map((item) => (
+          <div key={item.id}>
+            {item.quantity}x {item.name} ({item.variant_label})
+            {item.special_requests && <div>  Note: {item.special_requests}</div>}
+          </div>
+        ))}
+        {order.customer_allergies?.length > 0 && (
+          <>
+            <hr />
+            <div>ALLERGIES: {order.customer_allergies.join(", ")}</div>
+          </>
+        )}
+        <hr />
+        <div>
+          Payment: {order.payment_status === "pos_collected"
+            ? "Pay at counter"
+            : "Paid online"}
+        </div>
+      </div>
+    </Card>
+  );
+}
+```
+
+This is a full replacement of the file. The print receipt uses inline `style={{ display: "none" }}` which is overridden by the print CSS `display: block !important`.
 
 - [ ] **Step 3: Verify print works**
 
