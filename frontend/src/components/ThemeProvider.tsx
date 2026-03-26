@@ -12,7 +12,7 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue>({ theme: "customer" });
 
 function resolveTheme(pathname: string): ThemeName {
-  if (pathname.startsWith("/admin") || pathname.startsWith("/kitchen")) {
+  if (pathname.startsWith("/account/restaurants") || pathname.startsWith("/kitchen")) {
     return "admin";
   }
   return "customer";

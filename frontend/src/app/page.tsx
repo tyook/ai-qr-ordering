@@ -121,7 +121,7 @@ export default function Home() {
             size="lg"
             className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 border-0 h-12 px-8 text-base"
           >
-            <Link href="/admin/register">
+            <Link href="/account/register">
               <Store className="mr-2 h-4 w-4" />
               I&apos;m a Restaurant Owner
             </Link>
@@ -215,7 +215,7 @@ export default function Home() {
                   asChild
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-md shadow-primary/20"
                 >
-                  <Link href="/admin/register">
+                  <Link href="/account/register">
                     Start Free
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
@@ -389,7 +389,7 @@ export default function Home() {
               size="lg"
               className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 border-0 h-12 px-8 text-base"
             >
-              <Link href="/admin/register">
+              <Link href="/account/register">
                 <Store className="mr-2 h-4 w-4" />
                 I&apos;m a Restaurant Owner
               </Link>
