@@ -438,15 +438,14 @@ class OrderService:
             updated = Order.objects.filter(
                 id=order.id, payment_status="pending"
             ).update(status="confirmed", payment_status="paid", paid_at=timezone.now())
-            order.refresh_from_db()
             if updated:
-                broadcast_order_to_kitchen(order)
+                order.refresh_from_db()
                 OrderService.set_status_timestamp(order, "confirmed")
+                broadcast_order_to_kitchen(order)
                 broadcast_order_to_customer(order)
                 from orders.tasks import broadcast_queue_updates
                 broadcast_queue_updates.apply_async(
                     args=[str(order.restaurant_id), str(order.id)],
-                    countdown=2,
                 )
         elif intent.status in ("requires_payment_method", "canceled"):
             Order.objects.filter(
@@ -491,7 +490,6 @@ class OrderService:
         from orders.tasks import broadcast_queue_updates
         broadcast_queue_updates.apply_async(
             args=[str(order.restaurant_id), str(order.id)],
-            countdown=2,
         )
         return order
 
@@ -542,14 +540,12 @@ class OrderService:
         ).update(status="confirmed", payment_status="paid", paid_at=timezone.now())
         if updated:
             order.refresh_from_db()
-            broadcast_order_to_kitchen(order)
-            order.refresh_from_db()
             OrderService.set_status_timestamp(order, "confirmed")
+            broadcast_order_to_kitchen(order)
             broadcast_order_to_customer(order)
             from orders.tasks import broadcast_queue_updates
             broadcast_queue_updates.apply_async(
                 args=[str(order.restaurant_id), str(order.id)],
-                countdown=2,
             )
 
     @staticmethod

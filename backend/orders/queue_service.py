@@ -1,8 +1,6 @@
 import logging
-from datetime import timedelta
 
 from django.core.cache import cache
-from django.db.models import Avg, F, Q
 from django.utils import timezone
 
 from orders.models import Order
@@ -84,6 +82,14 @@ class QueueService:
     @staticmethod
     def get_order_queue_info(order: Order) -> dict:
         """Get queue info for SubmittedStep (post-order)."""
+        if order.status in (Order.Status.READY, Order.Status.COMPLETED):
+            return {
+                "queue_position": 0,
+                "estimated_wait_minutes": 0,
+                "status": order.status,
+                "busyness": QueueService.get_busyness(order.restaurant)["busyness"],
+            }
+
         position = QueueService.get_queue_position(order)
         estimated_wait = QueueService.get_estimated_wait(order.restaurant, position)
 
