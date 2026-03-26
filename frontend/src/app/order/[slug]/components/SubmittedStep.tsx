@@ -9,8 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 import { useOrderStore } from "@/stores/order-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { OrderTracker } from "./OrderTracker";
 
-export function SubmittedStep() {
+interface SubmittedStepProps {
+  slug: string;
+}
+
+export function SubmittedStep({ slug }: SubmittedStepProps) {
   const { orderId, tableIdentifier, customerName, customerPhone } = useOrderStore();
   const { isAuthenticated, register } = useAuthStore();
 
@@ -58,6 +63,8 @@ export function SubmittedStep() {
           Your order has been sent to the kitchen.
         </p>
       </div>
+
+      {orderId && <OrderTracker slug={slug} orderId={orderId} />}
 
       {/* Account creation prompt */}
       {!isAuthenticated && !registerSuccess && (
