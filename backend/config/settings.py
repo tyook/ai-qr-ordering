@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "accounts",
     "restaurants",
     "orders",
+    "integrations",
 ]
 
 MIDDLEWARE = [
@@ -175,6 +176,17 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
+
+# ---------------------------------------------------------------------------
+# POS Integration
+# ---------------------------------------------------------------------------
+POS_ENCRYPTION_KEY = config("POS_ENCRYPTION_KEY", default="")
+POS_SQUARE_CLIENT_ID = config("POS_SQUARE_CLIENT_ID", default="")
+POS_SQUARE_CLIENT_SECRET = config("POS_SQUARE_CLIENT_SECRET", default="")
+POS_TOAST_CLIENT_ID = config("POS_TOAST_CLIENT_ID", default="")
+POS_TOAST_CLIENT_SECRET = config("POS_TOAST_CLIENT_SECRET", default="")
+POS_DISPATCH_MAX_RETRIES = 5
+POS_DISPATCH_RETRY_DELAYS = [30, 120, 600, 1800]  # seconds: 30s, 2m, 10m, 30m
 
 # ---------------------------------------------------------------------------
 # Payout Configuration
