@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from integrations.adapters.base import BasePOSAdapter
 from integrations.adapters.noop import NoopAdapter
+from integrations.adapters.square import SquareAdapter
 from integrations.models import POSConnection, POSSyncLog
 from orders.models import Order
 
@@ -68,7 +69,7 @@ class POSDispatchService:
     def _get_adapter(connection: POSConnection) -> BasePOSAdapter:
         adapter_map = {
             POSConnection.POSType.NONE: NoopAdapter,
-            # POSConnection.POSType.SQUARE: SquareAdapter,  # Task 9
+            POSConnection.POSType.SQUARE: SquareAdapter,
         }
         adapter_class = adapter_map.get(connection.pos_type, NoopAdapter)
         return adapter_class(connection)

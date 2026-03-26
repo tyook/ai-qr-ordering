@@ -2515,6 +2515,24 @@ dev = ["build"]
 doc = ["sphinx"]
 
 [[package]]
+name = "squareup"
+version = "44.0.1.20260122"
+description = ""
+optional = false
+python-versions = "<4.0,>=3.8"
+groups = ["main"]
+files = [
+    {file = "squareup-44.0.1.20260122-py3-none-any.whl", hash = "sha256:002f6094731f87b5b9a1fcb2f56dc03c671b4b6eb07da3dd7a1699760a792e37"},
+    {file = "squareup-44.0.1.20260122.tar.gz", hash = "sha256:7c05c86ec4f50550f5f14f326131c56c758bd2ae4f146f00e25dc48acdc51212"},
+]
+
+[package.dependencies]
+httpx = ">=0.21.2"
+pydantic = ">=1.9.2"
+pydantic-core = ">=2.18.2"
+typing_extensions = ">=4.0.0"
+
+[[package]]
 name = "stripe"
 version = "14.3.0"
 description = "Python bindings for the Stripe API"
@@ -2869,4 +2887,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "73597c8a99552e71c0adc1bd97e1f6442efd00855c2e75a85acacf7bb4e77b55"
+content-hash = "52daab919c5b09c49a6893de127b4b3c751a2b48452b72e4a5a74df455f6f927"
