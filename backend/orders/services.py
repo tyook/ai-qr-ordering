@@ -199,28 +199,15 @@ class OrderService:
             "language": parsed.language,
         }
 
-    # ── Customer Resolution ────────────────────────────────────────
+    # ── User Resolution ───────────────────────────────────────────
 
     @staticmethod
-    def resolve_customer_from_token(request) -> "Customer | None":
-        """Extract customer from JWT in request Authorization header.
-
-        Returns None if no valid customer token is present.
+    def resolve_user_from_request(request):
+        """Extract user from request (set by CookieJWTAuthentication or header).
+        Returns None if no authenticated user.
         """
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-        if not auth_header.startswith("Bearer "):
-            return None
-        try:
-            from rest_framework_simplejwt.tokens import UntypedToken
-
-            from customers.models import Customer
-
-            token_str = auth_header.split(" ", 1)[1]
-            token = UntypedToken(token_str)
-            if token.get("token_type") == "customer_access":
-                return Customer.objects.get(id=token["customer_id"])
-        except Exception:
-            pass  # Not a customer token or invalid — that's fine
+        if hasattr(request, "user") and request.user and request.user.is_authenticated:
+            return request.user
         return None
 
     # ── Order Creation ─────────────────────────────────────────────
@@ -231,7 +218,7 @@ class OrderService:
         validated_items: list[dict],
         pricing: OrderPricing,
         *,
-        customer=None,
+        user=None,
         order_status: str = "confirmed",
         payment_status: str = "pending",
         raw_input: str = "",
@@ -246,7 +233,7 @@ class OrderService:
         order = Order.objects.create(
             restaurant=restaurant,
             table_identifier=table_identifier or None,
-            customer=customer,
+            user=user,
             customer_name=customer_name,
             customer_phone=customer_phone,
             status=order_status,
@@ -336,7 +323,7 @@ class OrderService:
     def create_payment_intent(
         order: Order,
         restaurant: Restaurant,
-        customer=None,
+        user=None,
         payment_method_id: str | None = None,
         return_url: str | None = None,
     ) -> "stripe.PaymentIntent":
@@ -365,11 +352,11 @@ class OrderService:
             },
         }
 
-        if customer:
-            stripe_customer_id = customer.get_or_create_stripe_customer()
+        if user:
+            stripe_customer_id = user.get_or_create_stripe_customer()
             intent_params["customer"] = stripe_customer_id
 
-        if payment_method_id and customer:
+        if payment_method_id and user:
             intent_params["payment_method"] = payment_method_id
             intent_params["confirm"] = True
             intent_params["return_url"] = return_url or "https://localhost"

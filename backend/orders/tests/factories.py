@@ -16,7 +16,7 @@ class OrderFactory(factory.django.DjangoModelFactory):
     raw_input = "Test order input"
     parsed_json = factory.LazyFunction(dict)
     total_price = factory.Faker("pydecimal", left_digits=2, right_digits=2, positive=True)
-    customer = None
+    user = None
     customer_name = ""
     customer_phone = ""
 

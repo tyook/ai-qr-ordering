@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 from restaurants.models import MenuItem, MenuItemModifier, MenuItemVariant, Restaurant
@@ -17,8 +18,8 @@ class Order(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="orders")
     table_identifier = models.CharField(max_length=50, blank=True, null=True)
-    customer = models.ForeignKey(
-        "customers.Customer",
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

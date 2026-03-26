@@ -31,7 +31,6 @@ class ParseOrderView(APIView):
 
 
 class ConfirmOrderView(APIView):
-    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request, slug):
@@ -44,13 +43,13 @@ class ConfirmOrderView(APIView):
         validated_items, pricing = OrderService.validate_and_price_items(
             restaurant, data["items"]
         )
-        customer = OrderService.resolve_customer_from_token(request)
+        user = OrderService.resolve_user_from_request(request)
 
         order = OrderService.create_order(
             restaurant,
             validated_items,
             pricing,
-            customer=customer,
+            user=user,
             order_status="confirmed",
             raw_input=data["raw_input"],
             parsed_json=request.data,
@@ -71,7 +70,6 @@ class ConfirmOrderView(APIView):
 
 
 class CreatePaymentView(APIView):
-    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request, slug):
@@ -84,12 +82,12 @@ class CreatePaymentView(APIView):
         validated_items, pricing = OrderService.validate_and_price_items(
             restaurant, data["items"]
         )
-        customer = OrderService.resolve_customer_from_token(request)
+        user = OrderService.resolve_user_from_request(request)
 
         # Build customer_allergies list
         customer_allergies = []
-        if customer and customer.allergies:
-            customer_allergies = list(customer.allergies)
+        if user and user.allergies:
+            customer_allergies = list(user.allergies)
         elif data.get("allergies"):
             customer_allergies = list(data["allergies"])
 
@@ -97,7 +95,7 @@ class CreatePaymentView(APIView):
             restaurant,
             validated_items,
             pricing,
-            customer=customer,
+            user=user,
             order_status="pending_payment",
             payment_status="pending",
             raw_input=data["raw_input"],
@@ -112,7 +110,7 @@ class CreatePaymentView(APIView):
         intent = OrderService.create_payment_intent(
             order,
             restaurant,
-            customer=customer,
+            user=user,
             payment_method_id=data.get("payment_method_id"),
             return_url=data.get("return_url"),
         )
