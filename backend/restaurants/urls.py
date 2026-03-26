@@ -14,6 +14,8 @@ from restaurants.views import (
     MenuItemDetailView,
     MenuItemListCreateView,
     MyRestaurantsView,
+    PayoutDetailView,
+    PayoutListView,
     ReactivateSubscriptionView,
     RestaurantDetailView,
     RestaurantOrderListView,
@@ -84,6 +86,17 @@ urlpatterns = [
         "restaurants/<slug:slug>/subscription/reactivate/",
         ReactivateSubscriptionView.as_view(),
         name="subscription-reactivate",
+    ),
+    # Payouts
+    path(
+        "restaurants/<slug:slug>/payouts/",
+        PayoutListView.as_view(),
+        name="payout-list",
+    ),
+    path(
+        "restaurants/<slug:slug>/payouts/<uuid:payout_id>/",
+        PayoutDetailView.as_view(),
+        name="payout-detail",
     ),
     # Connect (payout onboarding)
     path(

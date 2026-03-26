@@ -195,6 +195,37 @@ class ReactivateSubscriptionView(RestaurantMixin, APIView):
         return Response(SubscriptionSerializer(subscription).data)
 
 
+from rest_framework.pagination import PageNumberPagination
+from restaurants.serializers import PayoutListSerializer, PayoutDetailSerializer
+from restaurants.models import Payout
+
+
+class PayoutPagination(PageNumberPagination):
+    page_size = 20
+
+
+class PayoutListView(RestaurantMixin, APIView):
+    def get(self, request, slug):
+        restaurant = self.get_restaurant()
+        payouts = Payout.objects.filter(restaurant=restaurant)
+        paginator = PayoutPagination()
+        page = paginator.paginate_queryset(payouts, request)
+        serializer = PayoutListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class PayoutDetailView(RestaurantMixin, APIView):
+    def get(self, request, slug, payout_id):
+        restaurant = self.get_restaurant()
+        try:
+            payout = Payout.objects.get(id=payout_id, restaurant=restaurant)
+        except Payout.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Payout not found")
+        serializer = PayoutDetailSerializer(payout)
+        return Response(serializer.data)
+
+
 from restaurants.services import ConnectService
 
 
