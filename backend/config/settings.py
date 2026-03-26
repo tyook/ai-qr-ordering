@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "channels",
+    "django_celery_beat",
     # Local
     "accounts",
     "restaurants",
@@ -164,6 +165,28 @@ FREE_TRIAL_DAYS = 14
 FREE_TRIAL_ORDER_LIMIT = 200
 
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+
+# ---------------------------------------------------------------------------
+# Celery
+# ---------------------------------------------------------------------------
+CELERY_BROKER_URL = config("REDIS_URL", default="redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
+
+# ---------------------------------------------------------------------------
+# Payout Configuration
+# ---------------------------------------------------------------------------
+PAYOUT_CONFIG = {
+    "settlement_days": 2,
+    "job_run_hour_utc": 2,
+    "default_fee_rate": 0,
+    "default_fee_fixed_cents": 0,
+}
+
+STRIPE_CONNECT_WEBHOOK_SECRET = config("STRIPE_CONNECT_WEBHOOK_SECRET", default="")
 
 # ---------------------------------------------------------------------------
 # CORS
