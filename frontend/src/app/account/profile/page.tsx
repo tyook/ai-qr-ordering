@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useCustomerAuthStore } from "@/stores/customer-auth-store";
-import { useCustomerProfile, useUpdateCustomerProfile } from "@/hooks/use-customer-profile";
+import { useAuthStore } from "@/stores/auth-store";
+import { useProfile, useUpdateProfile } from "@/hooks/use-profile";
 import { usePreferencesStore } from "@/stores/preferences-store";
 import { useToast } from "@/hooks/use-toast";
 import { SPEECH_LANGUAGES } from "@/lib/constants";
@@ -38,9 +38,9 @@ const PREDEFINED_ALLERGIES = [
 export default function CustomerProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { isAuthenticated, checkAuth } = useCustomerAuthStore();
-  const { data: profile, isLoading, error } = useCustomerProfile();
-  const updateProfileMutation = useUpdateCustomerProfile();
+  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { data: profile, isLoading, error } = useProfile();
+  const updateProfileMutation = useUpdateProfile();
   const { setPreferredLanguage, setAllergyNote } = usePreferencesStore();
 
   const [name, setName] = useState("");

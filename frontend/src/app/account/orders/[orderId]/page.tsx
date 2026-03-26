@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useCustomerAuthStore } from "@/stores/customer-auth-store";
-import { useCustomerOrder } from "@/hooks/use-customer-orders";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrderDetail } from "@/hooks/use-orders";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending_payment: { label: "Pending Payment", variant: "destructive" },
@@ -30,8 +30,8 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const params = useParams();
   const orderId = params.orderId as string;
-  const { isAuthenticated, checkAuth } = useCustomerAuthStore();
-  const { data: order, isLoading, error } = useCustomerOrder(orderId);
+  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { data: order, isLoading, error } = useOrderDetail(orderId);
 
   useEffect(() => {
     if (!checkAuth()) {

@@ -3,13 +3,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { useCustomerAuthStore } from "@/stores/customer-auth-store";
-import { useCustomerOrders } from "@/hooks/use-customer-orders";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrderHistory } from "@/hooks/use-orders";
 
 export default function CustomerOrdersPage() {
   const router = useRouter();
-  const { isAuthenticated, checkAuth } = useCustomerAuthStore();
-  const { data: orders, isLoading, error } = useCustomerOrders();
+  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { data: orders, isLoading, error } = useOrderHistory();
 
   useEffect(() => {
     if (!checkAuth()) {
