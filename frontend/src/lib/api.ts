@@ -273,6 +273,28 @@ export async function saveCardConsent(
   });
 }
 
+// ── Queue ──
+export interface QueueInfo {
+  busyness: "green" | "yellow" | "red";
+  estimated_wait_minutes: number;
+  active_orders: number;
+}
+
+export interface OrderQueueInfo {
+  queue_position: number | null;
+  estimated_wait_minutes: number | null;
+  status: string;
+  busyness: string | null;
+}
+
+export async function fetchQueueInfo(slug: string): Promise<QueueInfo> {
+  return apiFetch<QueueInfo>(`/api/order/${slug}/queue-info/`);
+}
+
+export async function fetchOrderQueue(slug: string, orderId: string): Promise<OrderQueueInfo> {
+  return apiFetch<OrderQueueInfo>(`/api/order/${slug}/queue/${orderId}/`);
+}
+
 // ── Restaurant Admin ──
 export async function fetchRestaurantOrders(
   slug: string

@@ -78,7 +78,7 @@ export default function OrderPage() {
       {step === "loading" && <LoadingStep />}
       {step === "confirmation" && <ConfirmationStep slug={slug} taxRate={menu.tax_rate} />}
       {step === "payment" && <PaymentStep taxRate={menu.tax_rate} />}
-      {step === "submitted" && <SubmittedStep />}
+      {step === "submitted" && <SubmittedStep slug={slug} />}
 
       <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} />
     </main>

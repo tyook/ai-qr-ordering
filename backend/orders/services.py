@@ -9,7 +9,7 @@ from django.db import models as db_models
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from orders.broadcast import broadcast_order_to_kitchen
+from orders.broadcast import broadcast_order_to_customer, broadcast_order_to_kitchen
 from orders.llm.agent import OrderParsingAgent
 from orders.llm.base import ParsedOrder
 from orders.llm.menu_context import build_menu_context
@@ -45,6 +45,21 @@ class OrderPricing:
 
 class OrderService:
     """Service layer for order domain operations."""
+
+    STATUS_TIMESTAMP_FIELDS = {
+        "confirmed": "confirmed_at",
+        "preparing": "preparing_at",
+        "ready": "ready_at",
+        "completed": "completed_at",
+    }
+
+    @staticmethod
+    def set_status_timestamp(order: Order, status: str) -> None:
+        """Set the timestamp field corresponding to the given status."""
+        field = OrderService.STATUS_TIMESTAMP_FIELDS.get(status)
+        if field:
+            setattr(order, field, timezone.now())
+            order.save(update_fields=[field])
 
     # ── Item Validation & Pricing (shared by confirm + payment flows) ──
 
@@ -258,6 +273,9 @@ class OrderService:
             )
             order_item.modifiers.set(item_data["modifiers"])
 
+        if order_status == "confirmed":
+            OrderService.set_status_timestamp(order, "confirmed")
+
         return order
 
     # ── Subscription Check ─────────────────────────────────────────
@@ -420,9 +438,15 @@ class OrderService:
             updated = Order.objects.filter(
                 id=order.id, payment_status="pending"
             ).update(status="confirmed", payment_status="paid", paid_at=timezone.now())
-            order.refresh_from_db()
             if updated:
+                order.refresh_from_db()
+                OrderService.set_status_timestamp(order, "confirmed")
                 broadcast_order_to_kitchen(order)
+                broadcast_order_to_customer(order)
+                from orders.tasks import broadcast_queue_updates
+                broadcast_queue_updates.apply_async(
+                    args=[str(order.restaurant_id), str(order.id)],
+                )
         elif intent.status in ("requires_payment_method", "canceled"):
             Order.objects.filter(
                 id=order.id, payment_status="pending"
@@ -458,7 +482,15 @@ class OrderService:
 
         order.status = new_status
         order.save()
+        OrderService.set_status_timestamp(order, new_status)
         broadcast_order_to_kitchen(order)
+        broadcast_order_to_customer(order)
+
+        # Trigger fan-out to other waiting customers
+        from orders.tasks import broadcast_queue_updates
+        broadcast_queue_updates.apply_async(
+            args=[str(order.restaurant_id), str(order.id)],
+        )
         return order
 
     # ── Stripe Webhook Handling ────────────────────────────────────
@@ -508,7 +540,13 @@ class OrderService:
         ).update(status="confirmed", payment_status="paid", paid_at=timezone.now())
         if updated:
             order.refresh_from_db()
+            OrderService.set_status_timestamp(order, "confirmed")
             broadcast_order_to_kitchen(order)
+            broadcast_order_to_customer(order)
+            from orders.tasks import broadcast_queue_updates
+            broadcast_queue_updates.apply_async(
+                args=[str(order.restaurant_id), str(order.id)],
+            )
 
     @staticmethod
     def _handle_payment_failed(intent: dict) -> None:

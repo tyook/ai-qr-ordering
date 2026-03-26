@@ -19,3 +19,19 @@ def broadcast_order_to_kitchen(order):
             "data": data,
         },
     )
+
+
+def broadcast_order_to_customer(order):
+    """Send queue update to the customer's WebSocket group."""
+    from orders.queue_service import QueueService
+
+    channel_layer = get_channel_layer()
+    queue_info = QueueService.get_order_queue_info(order)
+
+    async_to_sync(channel_layer.group_send)(
+        f"customer_{order.id}",
+        {
+            "type": "queue_update",
+            "data": queue_info,
+        },
+    )
