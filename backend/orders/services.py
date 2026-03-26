@@ -509,6 +509,8 @@ class OrderService:
         if updated:
             order.refresh_from_db()
             broadcast_order_to_kitchen(order)
+            from integrations.tasks import dispatch_order_to_pos
+            dispatch_order_to_pos.delay(str(order.id))
 
     @staticmethod
     def _handle_payment_failed(intent: dict) -> None:

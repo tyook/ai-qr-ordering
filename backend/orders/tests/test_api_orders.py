@@ -305,7 +305,8 @@ class TestCreatePayment:
 class TestStripeWebhook:
     @patch("orders.services.stripe.Webhook.construct_event")
     @patch("orders.services.broadcast_order_to_kitchen")
-    def test_payment_succeeded_confirms_order(self, mock_broadcast, mock_construct, api_client):
+    @patch("integrations.tasks.dispatch_order_to_pos")
+    def test_payment_succeeded_confirms_order(self, mock_dispatch, mock_broadcast, mock_construct, api_client):
         order = OrderFactory(
             status="pending_payment",
             payment_status="pending",

@@ -3,6 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from integrations.tasks import dispatch_order_to_pos
 from orders.models import Order
 from orders.serializers import ConfirmOrderSerializer, OrderResponseSerializer, ParseInputSerializer
 from orders.services import OrderService
@@ -62,6 +63,7 @@ class ConfirmOrderView(APIView):
         from orders.broadcast import broadcast_order_to_kitchen
 
         broadcast_order_to_kitchen(order)
+        dispatch_order_to_pos.delay(str(order.id))
 
         return Response(
             OrderResponseSerializer(order).data,
@@ -125,6 +127,7 @@ class CreatePaymentView(APIView):
             order.save(update_fields=["status", "payment_status"])
             response_data["status"] = "confirmed"
             response_data["payment_status"] = "paid"
+            dispatch_order_to_pos.delay(str(order.id))
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -184,6 +187,9 @@ class ConfirmPaymentView(APIView):
             )
 
         order = OrderService.confirm_payment(order)
+
+        if order.payment_status == "paid":
+            dispatch_order_to_pos.delay(str(order.id))
 
         if order.payment_status == "failed":
             return Response(
