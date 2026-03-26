@@ -1,35 +1,24 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005";
 
-let isRefreshing = false;
-let refreshPromise: Promise<string | null> | null = null;
-
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken =
-    typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
-  if (!refreshToken) return null;
-
-  try {
-    const response = await fetch(`${API_URL}/api/auth/refresh/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh: refreshToken }),
-    });
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    localStorage.setItem("access_token", data.access);
-    return data.access;
-  } catch {
-    return null;
-  }
+function getCookie(name: string): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? match[2] : "";
 }
 
-async function clearAuth() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  const { useAuthStore } = await import("@/stores/auth-store");
-  useAuthStore.getState().logout();
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/refresh/`, {
+      method: "POST",
+      credentials: "include",
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function apiFetch<T>(
@@ -38,45 +27,53 @@ export async function apiFetch<T>(
   _isRetry = false
 ): Promise<T> {
   const url = `${API_URL}${path}`;
-  const headers: HeadersInit = {
+  const method = (options.method || "GET").toUpperCase();
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  if (method !== "GET" && method !== "HEAD") {
+    const csrfToken = getCookie("csrftoken");
+    if (csrfToken) {
+      headers["X-CSRFToken"] = csrfToken;
+    }
   }
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
 
-  if (response.status === 401 && !_isRetry && typeof window !== "undefined") {
-    // Deduplicate concurrent refresh attempts
+  if (response.status === 401 && !_isRetry) {
     if (!isRefreshing) {
       isRefreshing = true;
-      refreshPromise = refreshAccessToken().finally(() => {
+      refreshPromise = tryRefresh().finally(() => {
         isRefreshing = false;
         refreshPromise = null;
       });
     }
 
-    const newToken = await refreshPromise;
-
-    if (newToken) {
-      // Retry the original request with the new token
+    const refreshed = await refreshPromise;
+    if (refreshed) {
       return apiFetch<T>(path, options, true);
     }
 
-    // Refresh failed — clear everything
-    await clearAuth();
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Session expired. Please log in again.");
+    const { useAuthStore } = await import("@/stores/auth-store");
+    useAuthStore.getState().clearAuth();
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `API error: ${response.status}`);
+    throw new Error(
+      error.detail || error.email?.[0] || `API error: ${response.status}`
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json();
@@ -88,14 +85,100 @@ import type {
   ConfirmOrderItem,
   OrderResponse,
   CreatePaymentResponse,
-  CustomerAuthResponse,
-  CustomerProfile,
-  CustomerOrderHistoryItem,
-  CustomerOrderDetail,
+  AuthResponse,
+  User,
+  OrderHistoryItem,
+  OrderDetail,
   SavedPaymentMethod,
   Subscription,
 } from "@/types";
 
+// ── Auth ──
+export async function register(data: {
+  email: string;
+  password: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+  phone?: string;
+  link_order_id?: string;
+}): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/api/auth/register/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function login(
+  email: string,
+  password: string
+): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/api/auth/login/", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function googleAuth(
+  token: string,
+  linkOrderId?: string
+): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/api/auth/google/", {
+    method: "POST",
+    body: JSON.stringify({ token, link_order_id: linkOrderId }),
+  });
+}
+
+export async function appleAuth(
+  token: string,
+  name?: string,
+  linkOrderId?: string
+): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/api/auth/apple/", {
+    method: "POST",
+    body: JSON.stringify({ token, name, link_order_id: linkOrderId }),
+  });
+}
+
+export async function logout(): Promise<void> {
+  await apiFetch("/api/auth/logout/", { method: "POST" });
+}
+
+export async function fetchMe(): Promise<User> {
+  return apiFetch<User>("/api/auth/me/");
+}
+
+export async function updateProfile(data: Partial<User>): Promise<User> {
+  return apiFetch<User>("/api/auth/me/", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchCsrfToken(): Promise<void> {
+  await apiFetch("/api/auth/csrf/");
+}
+
+// ── Account ──
+export async function fetchOrderHistory(): Promise<OrderHistoryItem[]> {
+  return apiFetch<OrderHistoryItem[]>("/api/account/orders/");
+}
+
+export async function fetchOrderDetail(orderId: string): Promise<OrderDetail> {
+  return apiFetch<OrderDetail>(`/api/account/orders/${orderId}/`);
+}
+
+export async function fetchPaymentMethods(): Promise<SavedPaymentMethod[]> {
+  return apiFetch<SavedPaymentMethod[]>("/api/account/payment-methods/");
+}
+
+export async function deletePaymentMethod(pmId: string): Promise<void> {
+  await apiFetch<void>(`/api/account/payment-methods/${pmId}/`, {
+    method: "DELETE",
+  });
+}
+
+// ── Public Order Flow ──
 export async function fetchMenu(slug: string): Promise<PublicMenu> {
   return apiFetch<PublicMenu>(`/api/order/${slug}/menu/`);
 }
@@ -142,23 +225,26 @@ export async function createPayment(
   customerPhone?: string,
   paymentMethodId?: string,
   saveCard?: boolean,
-  allergies?: string[],
+  allergies?: string[]
 ): Promise<CreatePaymentResponse> {
-  return customerApiFetch<CreatePaymentResponse>(`/api/order/${slug}/create-payment/`, {
-    method: "POST",
-    body: JSON.stringify({
-      items,
-      raw_input: rawInput,
-      table_identifier: tableIdentifier,
-      language,
-      customer_name: customerName || "",
-      customer_phone: customerPhone || "",
-      payment_method_id: paymentMethodId || "",
-      save_card: saveCard || false,
-      return_url: window.location.href,
-      allergies: allergies || [],
-    }),
-  });
+  return apiFetch<CreatePaymentResponse>(
+    `/api/order/${slug}/create-payment/`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        items,
+        raw_input: rawInput,
+        table_identifier: tableIdentifier,
+        language,
+        customer_name: customerName || "",
+        customer_phone: customerPhone || "",
+        payment_method_id: paymentMethodId || "",
+        save_card: saveCard || false,
+        return_url: typeof window !== "undefined" ? window.location.href : "",
+        allergies: allergies || [],
+      }),
+    }
+  );
 }
 
 export async function fetchOrderStatus(
@@ -172,171 +258,28 @@ export async function confirmPayment(
   slug: string,
   orderId: string
 ): Promise<OrderResponse> {
-  return apiFetch<OrderResponse>(`/api/order/${slug}/confirm-payment/${orderId}/`, {
-    method: "POST",
-  });
+  return apiFetch<OrderResponse>(
+    `/api/order/${slug}/confirm-payment/${orderId}/`,
+    { method: "POST" }
+  );
 }
 
 export async function saveCardConsent(
   slug: string,
-  orderId: string,
+  orderId: string
 ): Promise<void> {
   await apiFetch(`/api/order/${slug}/save-card/${orderId}/`, {
     method: "PATCH",
   });
 }
 
-const CUSTOMER_TOKEN_KEY = "customer_access_token";
-const CUSTOMER_REFRESH_KEY = "customer_refresh_token";
-
-export async function customerApiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-  _isRetry = false
-): Promise<T> {
-  const url = `${API_URL}${path}`;
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-
-  const token = typeof window !== "undefined"
-    ? localStorage.getItem(CUSTOMER_TOKEN_KEY)
-    : null;
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(url, { ...options, headers });
-
-  if (response.status === 401 && !_isRetry && typeof window !== "undefined") {
-    // Try refresh
-    const refreshToken = localStorage.getItem(CUSTOMER_REFRESH_KEY);
-    if (refreshToken) {
-      try {
-        const refreshResp = await fetch(`${API_URL}/api/customer/auth/refresh/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh: refreshToken }),
-        });
-        if (refreshResp.ok) {
-          const data = await refreshResp.json();
-          localStorage.setItem(CUSTOMER_TOKEN_KEY, data.access);
-          // Retry
-          return customerApiFetch<T>(path, options, true);
-        }
-      } catch {}
-    }
-    // Clear auth
-    localStorage.removeItem(CUSTOMER_TOKEN_KEY);
-    localStorage.removeItem(CUSTOMER_REFRESH_KEY);
-  }
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || error.email?.[0] || `API error: ${response.status}`);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
-
-export async function customerRegister(data: {
-  email: string;
-  password: string;
-  name: string;
-  phone?: string;
-  link_order_id?: string;
-}): Promise<CustomerAuthResponse> {
-  return customerApiFetch<CustomerAuthResponse>("/api/customer/auth/register/", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function customerLogin(
-  email: string,
-  password: string,
-): Promise<CustomerAuthResponse> {
-  return customerApiFetch<CustomerAuthResponse>("/api/customer/auth/login/", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-export async function fetchCustomerProfile(): Promise<CustomerProfile> {
-  return customerApiFetch<CustomerProfile>("/api/customer/profile/");
-}
-
-export async function updateCustomerProfile(
-  data: Partial<CustomerProfile>,
-): Promise<CustomerProfile> {
-  return customerApiFetch<CustomerProfile>("/api/customer/profile/", {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function fetchCustomerOrders(): Promise<CustomerOrderHistoryItem[]> {
-  return customerApiFetch<CustomerOrderHistoryItem[]>("/api/customer/orders/");
-}
-
-export async function fetchCustomerOrder(orderId: string): Promise<CustomerOrderDetail> {
-  return customerApiFetch<CustomerOrderDetail>(`/api/customer/orders/${orderId}/`);
-}
-
-export async function customerGoogleAuth(
-  token: string,
-  linkOrderId?: string,
-): Promise<CustomerAuthResponse> {
-  const response = await fetch(`${API_URL}/api/customer/auth/google/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, link_order_id: linkOrderId }),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `API error: ${response.status}`);
-  }
-  return response.json();
-}
-
-export async function customerAppleAuth(
-  token: string,
-  name?: string,
-  linkOrderId?: string,
-): Promise<CustomerAuthResponse> {
-  const response = await fetch(`${API_URL}/api/customer/auth/apple/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, name, link_order_id: linkOrderId }),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `API error: ${response.status}`);
-  }
-  return response.json();
-}
-
-export async function fetchPaymentMethods(): Promise<SavedPaymentMethod[]> {
-  return customerApiFetch<SavedPaymentMethod[]>("/api/customer/payment-methods/");
-}
-
-export async function deletePaymentMethod(pmId: string): Promise<void> {
-  await customerApiFetch<void>(`/api/customer/payment-methods/${pmId}/`, {
-    method: "DELETE",
-  });
-}
-
-// Restaurant Orders (Admin)
-export async function fetchRestaurantOrders(slug: string): Promise<OrderResponse[]> {
+// ── Restaurant Admin ──
+export async function fetchRestaurantOrders(
+  slug: string
+): Promise<OrderResponse[]> {
   return apiFetch<OrderResponse[]>(`/api/restaurants/${slug}/orders/`);
 }
 
-// Subscription API
 export async function fetchSubscription(slug: string): Promise<Subscription> {
   return apiFetch<Subscription>(`/api/restaurants/${slug}/subscription/`);
 }
@@ -348,10 +291,7 @@ export async function createCheckoutSession(
 ): Promise<{ checkout_url: string }> {
   return apiFetch<{ checkout_url: string }>(
     `/api/restaurants/${slug}/subscription/checkout/`,
-    {
-      method: "POST",
-      body: JSON.stringify({ plan, interval }),
-    }
+    { method: "POST", body: JSON.stringify({ plan, interval }) }
   );
 }
 
@@ -364,17 +304,20 @@ export async function createBillingPortal(
   );
 }
 
-export async function cancelSubscription(slug: string): Promise<Subscription> {
+export async function cancelSubscription(
+  slug: string
+): Promise<Subscription> {
   return apiFetch<Subscription>(
     `/api/restaurants/${slug}/subscription/cancel/`,
     { method: "POST" }
   );
 }
 
-export async function reactivateSubscription(slug: string): Promise<Subscription> {
+export async function reactivateSubscription(
+  slug: string
+): Promise<Subscription> {
   return apiFetch<Subscription>(
     `/api/restaurants/${slug}/subscription/reactivate/`,
     { method: "POST" }
   );
 }
-
