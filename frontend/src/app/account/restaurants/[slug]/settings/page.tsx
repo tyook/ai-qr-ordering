@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRequireRestaurantAccess } from "@/hooks/use-auth";
 import { useRestaurant } from "@/hooks/use-restaurant";
 import { useUpdateTaxRate } from "@/hooks/use-update-tax-rate";
 
 export default function SettingsPage() {
   const params = useParams<{ slug: string }>();
+  const isAuthenticated = useRequireRestaurantAccess();
   const [tableIds, setTableIds] = useState("");
   const [generatedTables, setGeneratedTables] = useState<string[]>([]);
   const [taxRate, setTaxRate] = useState<string | null>(null);
@@ -49,11 +51,23 @@ export default function SettingsPage() {
     return `${baseUrl}/order/${params.slug}`;
   };
 
+  if (isAuthenticated === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         <Link
-          href="/admin"
+          href="/account/restaurants"
           className="text-sm text-muted-foreground hover:underline"
         >
           Back to dashboard

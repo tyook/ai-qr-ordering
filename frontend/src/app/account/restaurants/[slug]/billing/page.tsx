@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useRequireRestaurantAccess } from "@/hooks/use-auth";
 import {
   useSubscription,
   useCreateCheckout,
@@ -58,18 +59,23 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function BillingPage() {
   const params = useParams<{ slug: string }>();
+  const isAuthenticated = useRequireRestaurantAccess();
   const { data: subscription, isLoading } = useSubscription(params.slug);
   const createCheckout = useCreateCheckout(params.slug);
   const createPortal = useCreateBillingPortal(params.slug);
   const cancelSub = useCancelSubscription(params.slug);
   const reactivateSub = useReactivateSubscription(params.slug);
 
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   const usagePercent = subscription
@@ -80,7 +86,7 @@ export default function BillingPage() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         <Link
-          href="/admin"
+          href="/account/restaurants"
           className="text-sm text-muted-foreground hover:underline"
         >
           Back to dashboard

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore } from "@/stores/auth-store";
+import { useRequireRestaurantAccess } from "@/hooks/use-auth";
 import { useMyRestaurants } from "@/hooks/use-my-restaurants";
 import { useCreateRestaurant } from "@/hooks/use-create-restaurant";
 
-export default function AdminDashboard() {
-  const router = useRouter();
-  const { isAuthenticated, logout } = useAuthStore();
+export default function RestaurantsDashboard() {
+  const isAuthenticated = useRequireRestaurantAccess();
+  const { logout } = useAuthStore();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
@@ -23,14 +23,8 @@ export default function AdminDashboard() {
   const [newHomepage, setNewHomepage] = useState("");
   const [newLogoUrl, setNewLogoUrl] = useState("");
 
-  const { data: restaurants, isLoading } = useMyRestaurants(isAuthenticated);
+  const { data: restaurants, isLoading } = useMyRestaurants(isAuthenticated === true);
   const createRestaurant = useCreateRestaurant();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/admin/login");
-    }
-  }, [isAuthenticated, router]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,12 +51,16 @@ export default function AdminDashboard() {
     );
   };
 
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   return (
@@ -172,16 +170,16 @@ export default function AdminDashboard() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Link href={`/admin/${r.slug}/menu`}>
+                  <Link href={`/account/restaurants/${r.slug}/menu`}>
                     <Button variant="outline" size="sm">Menu</Button>
                   </Link>
-                  <Link href={`/admin/${r.slug}/orders`}>
+                  <Link href={`/account/restaurants/${r.slug}/orders`}>
                     <Button variant="outline" size="sm">Orders</Button>
                   </Link>
-                  <Link href={`/admin/${r.slug}/billing`}>
+                  <Link href={`/account/restaurants/${r.slug}/billing`}>
                     <Button variant="outline" size="sm">Billing</Button>
                   </Link>
-                  <Link href={`/admin/${r.slug}/settings`}>
+                  <Link href={`/account/restaurants/${r.slug}/settings`}>
                     <Button variant="outline" size="sm">Settings</Button>
                   </Link>
                   <Link href={`/kitchen/${r.slug}`}>

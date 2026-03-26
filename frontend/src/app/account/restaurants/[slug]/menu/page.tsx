@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useAuthStore } from "@/stores/auth-store";
+import { useRequireRestaurantAccess } from "@/hooks/use-auth";
 import {
   useAdminMenu,
   useAddCategory,
@@ -19,8 +19,7 @@ import {
 
 export default function MenuManagementPage() {
   const params = useParams<{ slug: string }>();
-  const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useRequireRestaurantAccess();
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showAddItem, setShowAddItem] = useState<number | null>(null);
   const [newItem, setNewItem] = useState({
@@ -30,16 +29,10 @@ export default function MenuManagementPage() {
     variantPrice: "",
   });
 
-  const { data: menu, isLoading } = useAdminMenu(params.slug, isAuthenticated);
+  const { data: menu, isLoading } = useAdminMenu(params.slug, isAuthenticated === true);
   const addCategory = useAddCategory(params.slug);
   const addMenuItem = useAddMenuItem(params.slug);
   const deactivateMenuItem = useDeactivateMenuItem(params.slug);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/admin/login");
-    }
-  }, [isAuthenticated, router]);
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,12 +81,16 @@ export default function MenuManagementPage() {
     deactivateMenuItem.mutate(itemId);
   };
 
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   return (
@@ -102,7 +99,7 @@ export default function MenuManagementPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <Link
-              href="/admin"
+              href="/account/restaurants"
               className="text-sm text-muted-foreground hover:underline"
             >
               Back to dashboard

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useAuthStore } from "@/stores/auth-store";
+import { useRequireRestaurantAccess } from "@/hooks/use-auth";
 import { useRestaurantOrders } from "@/hooks/use-restaurant-orders";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -18,28 +17,21 @@ const statusVariant: Record<string, "default" | "secondary" | "outline" | "destr
 };
 
 export default function OrderHistoryPage() {
-  const router = useRouter();
   const params = useParams();
   const slug = params.slug as string;
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useRequireRestaurantAccess();
   const { data: orders, isLoading, error } = useRestaurantOrders(slug);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/admin/login");
-    }
-  }, [isAuthenticated, router]);
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  if (isLoading) {
+  if (isAuthenticated === null || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
   }
 
   if (error) {
@@ -59,7 +51,7 @@ export default function OrderHistoryPage() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         <Link
-          href={`/admin/${slug}`}
+          href="/account/restaurants"
           className="text-sm text-muted-foreground hover:underline"
         >
           Back to dashboard
