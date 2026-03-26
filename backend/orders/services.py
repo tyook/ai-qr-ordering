@@ -419,7 +419,7 @@ class OrderService:
         if intent.status == "succeeded":
             updated = Order.objects.filter(
                 id=order.id, payment_status="pending"
-            ).update(status="confirmed", payment_status="paid")
+            ).update(status="confirmed", payment_status="paid", paid_at=timezone.now())
             order.refresh_from_db()
             if updated:
                 broadcast_order_to_kitchen(order)
@@ -503,7 +503,7 @@ class OrderService:
 
         updated = Order.objects.filter(
             id=order.id, payment_status="pending"
-        ).update(status="confirmed", payment_status="paid")
+        ).update(status="confirmed", payment_status="paid", paid_at=timezone.now())
         if updated:
             order.refresh_from_db()
             broadcast_order_to_kitchen(order)
