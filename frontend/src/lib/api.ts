@@ -466,3 +466,12 @@ export async function deleteMenuVersion(slug: string, versionId: number): Promis
     method: "DELETE",
   });
 }
+
+// ── Onboarding ──
+export async function completeOnboarding(): Promise<{ status: string }> {
+  return apiFetch("/api/account/onboarding/complete/", { method: "POST" });
+}
+
+export async function dismissOnboarding(): Promise<{ status: string }> {
+  return apiFetch("/api/account/onboarding/dismiss/", { method: "POST" });
+}
