@@ -6,6 +6,7 @@ from restaurants.models import (
     MenuItem,
     MenuItemModifier,
     MenuItemVariant,
+    MenuVersion,
     Restaurant,
     RestaurantStaff,
 )
@@ -41,11 +42,20 @@ class RestaurantStaffFactory(factory.django.DjangoModelFactory):
     role = "manager"
 
 
+class MenuVersionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = MenuVersion
+
+    restaurant = factory.SubFactory(RestaurantFactory)
+    name = factory.Sequence(lambda n: f"Menu Version {n}")
+    source = "manual"
+
+
 class MenuCategoryFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = MenuCategory
 
-    restaurant = factory.SubFactory(RestaurantFactory)
+    version = factory.SubFactory(MenuVersionFactory)
     name = factory.Sequence(lambda n: f"Category {n}")
     sort_order = factory.Sequence(lambda n: n)
 
