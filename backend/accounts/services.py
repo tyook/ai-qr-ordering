@@ -63,6 +63,9 @@ def user_to_dict(user: User) -> dict:
         "preferred_language": user.preferred_language,
         "is_restaurant_owner": user.is_restaurant_owner,
         "auth_provider": user.auth_provider,
+        "onboarding_completed": user.onboarding_completed,
+        "onboarding_dismissed": user.onboarding_dismissed,
+        "owns_restaurant": user.owned_restaurants.exists(),
     }
 
 

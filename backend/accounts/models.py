@@ -30,6 +30,9 @@ class User(AbstractUser):
     allergies = models.JSONField(default=list, blank=True)
     preferred_language = models.CharField(max_length=10, blank=True, default="en-US")
 
+    onboarding_completed = models.BooleanField(default=False)
+    onboarding_dismissed = models.BooleanField(default=False)
+
     username = None
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]

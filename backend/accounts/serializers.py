@@ -52,7 +52,7 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="name", read_only=True)
+    name = serializers.CharField(read_only=True)
     is_restaurant_owner = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -61,6 +61,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "id", "email", "first_name", "last_name", "name",
             "phone", "dietary_preferences", "allergies",
             "preferred_language", "auth_provider", "is_restaurant_owner",
-            "date_joined",
+            "date_joined", "onboarding_completed", "onboarding_dismissed",
         ]
-        read_only_fields = ["id", "email", "auth_provider", "date_joined"]
+        read_only_fields = [
+            "id", "email", "auth_provider", "date_joined",
+            "onboarding_completed", "onboarding_dismissed",
+        ]

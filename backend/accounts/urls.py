@@ -1,5 +1,6 @@
 from django.urls import path
 
+from accounts.views_onboarding import OnboardingCompleteView, OnboardingDismissView
 from accounts.views import (
     AppleAuthView,
     CSRFTokenView,
@@ -30,4 +31,7 @@ urlpatterns = [
     path("account/orders/<uuid:order_id>/", OrderDetailView.as_view(), name="account-order-detail"),
     path("account/payment-methods/", PaymentMethodsView.as_view(), name="account-payment-methods"),
     path("account/payment-methods/<str:pm_id>/", PaymentMethodDetailView.as_view(), name="account-payment-method-detail"),
+    # Onboarding
+    path("account/onboarding/complete/", OnboardingCompleteView.as_view(), name="onboarding-complete"),
+    path("account/onboarding/dismiss/", OnboardingDismissView.as_view(), name="onboarding-dismiss"),
 ]
