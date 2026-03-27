@@ -16,10 +16,13 @@ import {
   useAddMenuItem,
   useDeactivateMenuItem,
 } from "@/hooks/use-admin-menu";
+import { MenuUploadModal } from "@/components/menu-upload-modal";
+import { VersionPicker } from "@/components/version-picker";
 
 export default function MenuManagementPage() {
   const params = useParams<{ slug: string }>();
   const isAuthenticated = useRequireRestaurantAccess();
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showAddItem, setShowAddItem] = useState<number | null>(null);
   const [newItem, setNewItem] = useState({
@@ -107,7 +110,14 @@ export default function MenuManagementPage() {
             <h1 className="text-2xl font-bold">
               {menu?.restaurant_name} - Menu
             </h1>
+            <VersionPicker slug={params.slug} />
           </div>
+          <Button
+            onClick={() => setUploadOpen(true)}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            Upload Menu Photos
+          </Button>
         </div>
 
         {/* Add Category */}
@@ -265,6 +275,13 @@ export default function MenuManagementPage() {
           </div>
         ))}
       </div>
+
+      <MenuUploadModal
+        slug={params.slug}
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        hasExistingMenu={!!menu?.categories?.length}
+      />
     </div>
   );
 }
