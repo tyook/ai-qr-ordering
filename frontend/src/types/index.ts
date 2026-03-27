@@ -19,7 +19,14 @@ export interface Restaurant {
   name: string;
   slug: string;
   phone: string;
-  address: string;
+  street_address: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  country: string;
+  google_place_id: string;
+  latitude: number | null;
+  longitude: number | null;
   homepage: string;
   logo_url: string;
   tax_rate: string;
@@ -40,6 +47,9 @@ export interface User {
   preferred_language: string;
   auth_provider: string;
   is_restaurant_owner: boolean;
+  owns_restaurant: boolean;
+  onboarding_completed: boolean;
+  onboarding_dismissed: boolean;
 }
 
 export interface AuthResponse {
