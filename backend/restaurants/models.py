@@ -33,6 +33,8 @@ class Restaurant(models.Model):
         choices=[("upfront", "Pay Upfront"), ("tab", "Open Tab")],
         default="upfront",
     )
+    accepting_orders = models.BooleanField(default=True)
+    auto_resume_orders = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -205,6 +207,45 @@ class Table(models.Model):
 
     def __str__(self):
         return f"{self.restaurant.name} - Table {self.number}"
+
+
+class OperatingHours(models.Model):
+    class DayOfWeek(models.IntegerChoices):
+        MONDAY = 0, "Monday"
+        TUESDAY = 1, "Tuesday"
+        WEDNESDAY = 2, "Wednesday"
+        THURSDAY = 3, "Thursday"
+        FRIDAY = 4, "Friday"
+        SATURDAY = 5, "Saturday"
+        SUNDAY = 6, "Sunday"
+
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="operating_hours")
+    day_of_week = models.IntegerField(choices=DayOfWeek.choices)
+    open_time = models.TimeField()
+    close_time = models.TimeField()
+
+    class Meta:
+        ordering = ["day_of_week", "open_time"]
+
+    def __str__(self):
+        return f"{self.restaurant.name} - {self.get_day_of_week_display()}: {self.open_time}-{self.close_time}"
+
+
+class HolidayOverride(models.Model):
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="holiday_overrides")
+    date = models.DateField()
+    label = models.CharField(max_length=100, help_text="e.g. Christmas, Vacation")
+    is_closed = models.BooleanField(default=True)
+    open_time = models.TimeField(null=True, blank=True)
+    close_time = models.TimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("restaurant", "date")
+        ordering = ["date"]
+
+    def __str__(self):
+        status = "Closed" if self.is_closed else f"{self.open_time}-{self.close_time}"
+        return f"{self.restaurant.name} - {self.label} ({self.date}): {status}"
 
 
 class ConnectedAccount(models.Model):

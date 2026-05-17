@@ -117,6 +117,11 @@ python manage.py reset_db --flush-only
 
 ## Running
 
+Start the database and Redis:
+```
+docker compose up db redis -d
+```
+
 Start the backend (port 5005):
 ```
 cd backend

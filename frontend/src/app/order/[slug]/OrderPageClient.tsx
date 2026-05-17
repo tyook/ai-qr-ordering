@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { Settings, User } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useOrderStore } from "@/stores/order-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMenu } from "@/hooks/use-menu";
@@ -25,12 +24,10 @@ export default function OrderPage() {
   const reset = useOrderStore((s) => s.reset);
   const setPaymentModel = useOrderStore((s) => s.setPaymentModel);
   const { data: menu, isLoading, error } = useMenu(slug);
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { checkAuth } = useAuthStore();
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     checkAuth();
   }, [checkAuth]);
 
@@ -90,15 +87,6 @@ export default function OrderPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
-        {mounted && (isAuthenticated ? (
-          <Link href="/account/profile" className="text-sm text-muted-foreground hover:text-foreground">
-            <User className="h-5 w-5" />
-          </Link>
-        ) : (
-          <Link href="/account/login" className="text-sm text-muted-foreground hover:text-foreground">
-            Sign in
-          </Link>
-        ))}
         <Button
           variant="ghost"
           size="icon"
@@ -109,7 +97,15 @@ export default function OrderPage() {
         </Button>
       </div>
       <TabStatusBar />
-      {step === "welcome" && <WelcomeStep restaurantName={menu.restaurant_name} slug={slug} />}
+      {step === "welcome" && (
+        <WelcomeStep
+          restaurantName={menu.restaurant_name}
+          slug={slug}
+          operatingHours={menu.operating_hours}
+          holidayOverrides={menu.holiday_overrides}
+          acceptingOrders={menu.accepting_orders}
+        />
+      )}
       {step === "ordering" && <OrderingStep slug={slug} categories={menu.categories} />}
       {step === "cart" && <ConfirmationStep slug={slug} taxRate={menu.tax_rate} paymentMode={menu.payment_mode ?? "stripe"} />}
       {step === "payment" && <PaymentStep taxRate={menu.tax_rate} />}

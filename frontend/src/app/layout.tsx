@@ -9,6 +9,7 @@ import { AppleAuthInit } from "@/components/AppleAuthInit";
 import { OnboardingBanner } from "@/components/onboarding/onboarding-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CookieBanner } from "@/components/CookieBanner";
+import { Toaster } from "@/components/ui/toaster";
 import { WebOnlyScripts } from "@/components/WebOnlyScripts";
 import { NativeInitializer } from "@/components/NativeInitializer";
 import { AuthInitializer } from "@/components/AuthInitializer";
@@ -63,6 +64,7 @@ export default function RootLayout({
               <NativeInitializer />
               {children}
               <CookieBanner />
+              <Toaster />
             </TooltipProvider>
           </ThemeProvider>
         </QueryProvider>

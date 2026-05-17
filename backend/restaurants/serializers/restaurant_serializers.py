@@ -1,10 +1,12 @@
 from rest_framework import serializers
 
 from restaurants.models import (
+    HolidayOverride,
     MenuCategory,
     MenuItem,
     MenuItemModifier,
     MenuItemVariant,
+    OperatingHours,
     Restaurant,
     RestaurantStaff,
     Subscription,
@@ -34,6 +36,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
             "logo_url",
             "tax_rate",
             "payment_model",
+            "accepting_orders",
+            "auto_resume_orders",
             "created_at",
             "subscription",
         ]
@@ -295,3 +299,26 @@ class TableSerializer(serializers.ModelSerializer):
                 "Table number must contain only letters, numbers, hyphens, or underscores."
             )
         return value
+
+
+class OperatingHoursSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OperatingHours
+        fields = ["id", "day_of_week", "open_time", "close_time"]
+        read_only_fields = ["id"]
+
+
+class HolidayOverrideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HolidayOverride
+        fields = ["id", "date", "label", "is_closed", "open_time", "close_time"]
+        read_only_fields = ["id"]
+
+    def validate(self, data):
+        is_closed = data.get("is_closed", True)
+        if not is_closed:
+            if not data.get("open_time") or not data.get("close_time"):
+                raise serializers.ValidationError(
+                    "open_time and close_time are required when not closed."
+                )
+        return data

@@ -9,14 +9,18 @@ from restaurants.views_menu_upload import (
     MenuVersionListView,
 )
 from restaurants.views import (
+    AcceptingOrdersToggleView,
     BillingHistoryView,
     CancelSubscriptionView,
     ConnectDashboardView,
     ConnectOnboardView,
     ConnectStatusView,
     HallStatusView,
+    HolidayOverrideDetailView,
+    HolidayOverrideListCreateView,
     OnboardingConnectInitiateView,
     OnboardingConnectStatusView,
+    OperatingHoursBulkView,
     CreateBillingPortalView,
     CreateCheckoutSessionView,
     CreateRestaurantView,
@@ -125,6 +129,29 @@ urlpatterns = [
     path("restaurants/<slug:slug>/menu/versions/", MenuVersionListView.as_view(), name="menu-versions"),
     path("restaurants/<slug:slug>/menu/versions/<int:pk>/", MenuVersionDetailView.as_view(), name="menu-version-detail"),
     path("restaurants/<slug:slug>/menu/versions/<int:pk>/activate/", MenuVersionActivateView.as_view(), name="menu-version-activate"),
+    # Accepting Orders Toggle
+    path(
+        "restaurants/<slug:slug>/accepting-orders/",
+        AcceptingOrdersToggleView.as_view(),
+        name="accepting-orders-toggle",
+    ),
+    # Operating Hours
+    path(
+        "restaurants/<slug:slug>/operating-hours/",
+        OperatingHoursBulkView.as_view(),
+        name="operating-hours",
+    ),
+    # Holiday Overrides
+    path(
+        "restaurants/<slug:slug>/holiday-overrides/",
+        HolidayOverrideListCreateView.as_view(),
+        name="holiday-override-list-create",
+    ),
+    path(
+        "restaurants/<slug:slug>/holiday-overrides/<int:pk>/",
+        HolidayOverrideDetailView.as_view(),
+        name="holiday-override-detail",
+    ),
     # Tables
     path(
         "restaurants/<slug:slug>/tables/",

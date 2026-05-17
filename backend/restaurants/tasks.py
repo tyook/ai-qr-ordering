@@ -8,6 +8,19 @@ from restaurants.services.payout_service import PayoutService
 logger = logging.getLogger(__name__)
 
 
+@app.task(name="restaurants.tasks.auto_resume_orders")
+def auto_resume_orders():
+    """Re-enable accepting_orders for restaurants that opted into auto-resume."""
+    from restaurants.models import Restaurant
+
+    updated = Restaurant.objects.filter(
+        accepting_orders=False,
+        auto_resume_orders=True,
+    ).update(accepting_orders=True)
+    if updated:
+        logger.info("Auto-resumed orders for %d restaurant(s)", updated)
+
+
 @app.task(name="restaurants.tasks.process_daily_payouts")
 def process_daily_payouts():
     logger.info("Starting daily payout processing")

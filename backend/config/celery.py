@@ -9,6 +9,10 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 app.conf.beat_schedule = {
+    "daily-auto-resume-orders": {
+        "task": "restaurants.tasks.auto_resume_orders",
+        "schedule": crontab(hour=5, minute=0),
+    },
     "daily-restaurant-payouts": {
         "task": "restaurants.tasks.process_daily_payouts",
         "schedule": crontab(hour=2, minute=0),

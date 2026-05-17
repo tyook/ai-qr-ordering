@@ -19,6 +19,7 @@ import { useConnectOnboardingLink, useConnectOnboardingStatus } from "@/hooks/us
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 import type { Table } from "@/types";
+import OperatingHoursCard from "./OperatingHoursCard";
 
 export default function SettingsPage() {
   const params = useParams<{ slug: string }>();
@@ -371,6 +372,9 @@ export default function SettingsPage() {
             )}
           </div>
         </Card>
+
+        {/* Operating Hours */}
+        <OperatingHoursCard slug={params.slug} />
 
         {/* QR Codes — gated behind payment setup */}
         {!connectLoading && !paymentReady && (

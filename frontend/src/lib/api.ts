@@ -711,6 +711,66 @@ export async function deleteTable(
   });
 }
 
+// ── Accepting Orders ──
+export interface AcceptingOrdersStatus {
+  accepting_orders: boolean;
+  auto_resume_orders: boolean;
+}
+
+export async function fetchAcceptingOrders(slug: string): Promise<AcceptingOrdersStatus> {
+  return apiFetch<AcceptingOrdersStatus>(`/api/restaurants/${slug}/accepting-orders/`);
+}
+
+export async function toggleAcceptingOrders(
+  slug: string,
+  data: { accepting_orders: boolean; auto_resume_orders?: boolean }
+): Promise<AcceptingOrdersStatus> {
+  return apiFetch<AcceptingOrdersStatus>(`/api/restaurants/${slug}/accepting-orders/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Operating Hours ──
+import type { OperatingHoursEntry, HolidayOverride } from "@/types";
+
+export async function fetchOperatingHours(slug: string): Promise<OperatingHoursEntry[]> {
+  return apiFetch<OperatingHoursEntry[]>(`/api/restaurants/${slug}/operating-hours/`);
+}
+
+export async function saveOperatingHours(
+  slug: string,
+  data: OperatingHoursEntry[]
+): Promise<OperatingHoursEntry[]> {
+  return apiFetch<OperatingHoursEntry[]>(`/api/restaurants/${slug}/operating-hours/`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchHolidayOverrides(slug: string): Promise<HolidayOverride[]> {
+  return apiFetch<HolidayOverride[]>(`/api/restaurants/${slug}/holiday-overrides/`);
+}
+
+export async function createHolidayOverride(
+  slug: string,
+  data: Omit<HolidayOverride, "id">
+): Promise<HolidayOverride> {
+  return apiFetch<HolidayOverride>(`/api/restaurants/${slug}/holiday-overrides/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteHolidayOverride(
+  slug: string,
+  id: number
+): Promise<void> {
+  return apiFetch<void>(`/api/restaurants/${slug}/holiday-overrides/${id}/`, {
+    method: "DELETE",
+  });
+}
+
 // ── Hall Status ──
 import type { HallStatusTable } from "@/types";
 

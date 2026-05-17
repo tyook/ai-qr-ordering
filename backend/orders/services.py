@@ -917,6 +917,10 @@ class OrderService:
             restaurant=restaurant, onboarding_complete=True
         ).exists()
 
+        from restaurants.serializers import OperatingHoursSerializer, HolidayOverrideSerializer
+        operating_hours = restaurant.operating_hours.all()
+        holiday_overrides = restaurant.holiday_overrides.all()
+
         return {
             "restaurant_name": restaurant.name,
             "tax_rate": str(restaurant.tax_rate),
@@ -926,6 +930,9 @@ class OrderService:
             "payment_mode": payment_mode,
             "payment_model": restaurant.payment_model,
             "payment_ready": payment_ready,
+            "accepting_orders": restaurant.accepting_orders,
+            "operating_hours": OperatingHoursSerializer(operating_hours, many=True).data,
+            "holiday_overrides": HolidayOverrideSerializer(holiday_overrides, many=True).data,
         }
 
     @staticmethod

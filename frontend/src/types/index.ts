@@ -41,6 +41,8 @@ export interface Restaurant {
   logo_url: string;
   tax_rate: string;
   payment_model: "upfront" | "tab";
+  accepting_orders: boolean;
+  auto_resume_orders: boolean;
   created_at: string;
   subscription?: Subscription;
 }
@@ -114,7 +116,10 @@ export interface PublicMenu {
   payment_mode: "stripe" | "pos_collected";
   payment_model: "upfront" | "tab";
   payment_ready: boolean;
+  accepting_orders: boolean;
   categories: MenuCategory[];
+  operating_hours: OperatingHoursEntry[];
+  holiday_overrides: HolidayOverride[];
 }
 
 // Order types
@@ -394,6 +399,23 @@ export interface TabOrderResponse extends OrderResponse {
 export interface TabPaymentResponse {
   payment_id: string;
   client_secret: string;
+}
+
+// Operating Hours types
+export interface OperatingHoursEntry {
+  id?: number;
+  day_of_week: number;
+  open_time: string;
+  close_time: string;
+}
+
+export interface HolidayOverride {
+  id: number;
+  date: string;
+  label: string;
+  is_closed: boolean;
+  open_time: string | null;
+  close_time: string | null;
 }
 
 // Hall Status types

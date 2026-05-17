@@ -5,11 +5,22 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from restaurants.models import MenuCategory, MenuItem, MenuVersion, Restaurant, RestaurantStaff, Subscription
+from restaurants.models import (
+    HolidayOverride,
+    MenuCategory,
+    MenuItem,
+    MenuVersion,
+    OperatingHours,
+    Restaurant,
+    RestaurantStaff,
+    Subscription,
+)
 from restaurants.permissions import HasActiveSubscription
 from restaurants.serializers import (
+    HolidayOverrideSerializer,
     MenuCategorySerializer,
     MenuItemSerializer,
+    OperatingHoursSerializer,
     RestaurantSerializer,
     SubscriptionSerializer,
 )
@@ -586,3 +597,80 @@ class RestaurantAnalyticsView(RestaurantMixin, APIView):
                 ],
             }
         )
+
+
+class AcceptingOrdersToggleView(RestaurantMixin, APIView):
+    """POST /api/restaurants/:slug/accepting-orders/ - Toggle accepting_orders."""
+
+    def get(self, request, slug):
+        restaurant = self.get_restaurant()
+        return Response({
+            "accepting_orders": restaurant.accepting_orders,
+            "auto_resume_orders": restaurant.auto_resume_orders,
+        })
+
+    def post(self, request, slug):
+        restaurant = self.get_restaurant()
+        accepting = request.data.get("accepting_orders")
+        if accepting is None:
+            return Response(
+                {"detail": "accepting_orders is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        restaurant.accepting_orders = accepting
+        auto_resume = request.data.get("auto_resume_orders")
+        if auto_resume is not None:
+            restaurant.auto_resume_orders = auto_resume
+        restaurant.save(update_fields=["accepting_orders", "auto_resume_orders"])
+        return Response({
+            "accepting_orders": restaurant.accepting_orders,
+            "auto_resume_orders": restaurant.auto_resume_orders,
+        })
+
+
+class OperatingHoursBulkView(RestaurantMixin, APIView):
+    """GET/PUT /api/restaurants/:slug/operating-hours/
+    GET returns all time slots across all days.
+    PUT accepts a list of slot objects (multiple per day allowed, zero = closed) and replaces all.
+    """
+
+    def get(self, request, slug):
+        restaurant = self.get_restaurant()
+        hours = restaurant.operating_hours.all()
+        return Response(OperatingHoursSerializer(hours, many=True).data)
+
+    def put(self, request, slug):
+        restaurant = self.get_restaurant()
+        serializer = OperatingHoursSerializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        restaurant.operating_hours.all().delete()
+        for item in serializer.validated_data:
+            OperatingHours.objects.create(restaurant=restaurant, **item)
+
+        hours = restaurant.operating_hours.all()
+        return Response(OperatingHoursSerializer(hours, many=True).data)
+
+
+class HolidayOverrideListCreateView(RestaurantMixin, generics.ListCreateAPIView):
+    """GET/POST /api/restaurants/:slug/holiday-overrides/"""
+
+    serializer_class = HolidayOverrideSerializer
+
+    def get_queryset(self):
+        restaurant = self.get_restaurant()
+        return restaurant.holiday_overrides.all()
+
+    def perform_create(self, serializer):
+        restaurant = self.get_restaurant()
+        serializer.save(restaurant=restaurant)
+
+
+class HolidayOverrideDetailView(RestaurantMixin, generics.RetrieveUpdateDestroyAPIView):
+    """GET/PATCH/DELETE /api/restaurants/:slug/holiday-overrides/:pk/"""
+
+    serializer_class = HolidayOverrideSerializer
+
+    def get_queryset(self):
+        restaurant = self.get_restaurant()
+        return restaurant.holiday_overrides.all()

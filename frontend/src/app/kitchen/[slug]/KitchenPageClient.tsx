@@ -11,6 +11,7 @@ import { useMyRestaurants } from "@/hooks/use-my-restaurants";
 import { useAdvanceOrder } from "@/hooks/use-advance-order";
 import { useRestaurantOrders } from "@/hooks/use-restaurant-orders";
 import { OrderColumn } from "./components/OrderColumn";
+import { PauseOrdersButton } from "./components/PauseOrdersButton";
 import { ChefHat } from "lucide-react";
 import type { OrderResponse } from "@/types";
 
@@ -117,17 +118,20 @@ export default function KitchenPage() {
           <ChefHat className="w-5 h-5 text-primary" />
           <span className="font-semibold text-foreground">{restaurantName}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              isConnected
-                ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
-                : "bg-destructive"
-            }`}
-          />
-          <span className="text-xs text-muted-foreground">
-            {isConnected ? "Live" : "Disconnected"}
-          </span>
+        <div className="flex items-center gap-3">
+          <PauseOrdersButton slug={slug} />
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isConnected
+                  ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+                  : "bg-destructive"
+              }`}
+            />
+            <span className="text-xs text-muted-foreground">
+              {isConnected ? "Live" : "Disconnected"}
+            </span>
+          </div>
         </div>
       </div>
 
