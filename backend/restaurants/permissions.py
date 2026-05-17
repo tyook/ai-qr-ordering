@@ -55,3 +55,47 @@ class HasActiveSubscription(BasePermission):
                 return True
 
         return False
+
+
+class IsRestaurantAdmin(BasePermission):
+    """Allow access only to restaurant Owner or Admin."""
+    message = "You need admin access to perform this action."
+
+    def has_permission(self, request, view):
+        slug = view.kwargs.get("slug")
+        if slug is None:
+            return False
+        try:
+            restaurant = Restaurant.objects.get(slug=slug)
+        except Restaurant.DoesNotExist:
+            return False
+        if restaurant.owner == request.user:
+            return True
+        return RestaurantStaff.objects.filter(
+            user=request.user, restaurant=restaurant, role="admin"
+        ).exists()
+
+
+class HasPermission(BasePermission):
+    """Check a specific permission key. Owner/Admin auto-pass."""
+
+    def __init__(self, permission_key):
+        self.permission_key = permission_key
+
+    def has_permission(self, request, view):
+        slug = view.kwargs.get("slug")
+        if slug is None:
+            return False
+        try:
+            restaurant = Restaurant.objects.get(slug=slug)
+        except Restaurant.DoesNotExist:
+            return False
+        if restaurant.owner == request.user:
+            return True
+        try:
+            staff = RestaurantStaff.objects.get(user=request.user, restaurant=restaurant)
+        except RestaurantStaff.DoesNotExist:
+            return False
+        if staff.role == "admin":
+            return True
+        return staff.permissions.get(self.permission_key, False)
