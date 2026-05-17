@@ -51,6 +51,7 @@ Owner and Admin roles implicitly have all permissions — overrides are ignored 
 
 - Rename `StaffRole` choices: `owner` / `admin` / `member` (from `owner` / `manager` / `kitchen`)
 - Add `permissions` field: `JSONField(default=dict, blank=True)` — stores override flags like `{"menu_edit": true, "order_manage": false}`
+- **Data migration required**: A migration must convert existing rows: `manager` → `admin`, `kitchen` → `member`. The `owner` value is unchanged.
 
 ### New `Invitation` Model
 
@@ -61,14 +62,14 @@ Owner and Admin roles implicitly have all permissions — overrides are ignored 
 | `email` | EmailField | Invitee's email address |
 | `role` | CharField (choices: admin, member) | Cannot invite as owner |
 | `permissions` | JSONField (default=dict) | Pre-set overrides for member invites |
-| `token` | CharField (unique, 32 chars) | URL-safe random token |
+| `token` | CharField (max_length=64, unique) | URL-safe random token, generated via `secrets.token_urlsafe(32)` (32 bytes of randomness) |
 | `invited_by` | FK → User | Who sent the invitation |
 | `status` | CharField | `pending` / `accepted` / `expired` / `revoked` |
 | `created_at` | DateTimeField | Auto-set on creation |
 | `expires_at` | DateTimeField | `created_at + 7 days` |
 
 **Constraints:**
-- Unique together: `(restaurant, email)` where `status = pending` — no duplicate pending invites
+- Conditional unique constraint using Django's `UniqueConstraint` with `condition=Q(status="pending")` on `(restaurant, email)` — no duplicate pending invites. This requires PostgreSQL's partial unique index; `unique_together` cannot express this.
 
 ### Ownership Transfer
 
@@ -132,7 +133,13 @@ Links expire after 7 days. Owner/Admin can resend to reset the expiry.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/invitations/:token/` | Validate invitation |
-| POST | `/api/invitations/:token/accept/` | Accept invitation (creates account if needed) |
+| POST | `/api/invitations/:token/accept/` | Accept invitation (see request body below) |
+
+**Accept invitation request body (`POST /api/invitations/:token/accept/`):**
+
+- **Logged-in user**: Empty body or `{}`. The authenticated user is added to the restaurant.
+- **New registration**: `{"first_name": "...", "last_name": "...", "password": "..."}`. Email is taken from the invitation. Creates a new User account and adds them to the restaurant.
+- **Social auth registration**: `{"auth_provider": "google"|"apple", "auth_token": "..."}`. Creates account via social auth flow and adds to restaurant. The social auth email must match the invitation email.
 
 ### Role Check (Any Staff)
 
@@ -160,6 +167,38 @@ New `TeamService` class:
 - `HasPermission('order_manage')` — same pattern
 
 Existing `IsRestaurantOwnerOrStaff` unchanged — used for basic "can you access this restaurant" checks.
+
+### Existing View Permission Updates
+
+Apply new permission classes to existing views in `restaurants/views.py`:
+
+| View | Current Access | New Permission |
+|------|---------------|----------------|
+| `RestaurantAnalyticsView` | Any staff | `IsRestaurantAdmin` |
+| `SubscriptionDetailView` | Any staff | `IsRestaurantAdmin` |
+| `CreateCheckoutSessionView` | Any staff | `IsRestaurantAdmin` |
+| `CancelSubscriptionView` | Any staff | `IsRestaurantAdmin` |
+| `ReactivateSubscriptionView` | Any staff | `IsRestaurantAdmin` |
+| `BillingHistoryView` | Any staff | `IsRestaurantAdmin` |
+| `CreateBillingPortalView` | Any staff | `IsRestaurantAdmin` |
+| `RestaurantDetailView` (PATCH) | Any staff | `IsRestaurantAdmin` (GET remains any staff) |
+| `ConnectOnboardView` | Any staff | `IsRestaurantAdmin` |
+| `MenuCategoryListCreateView` (POST) | Any staff | `HasPermission('menu_edit')` |
+| `MenuCategoryDetailView` (PATCH) | Any staff | `HasPermission('menu_edit')` |
+| `MenuItemListCreateView` (POST) | Any staff | `HasPermission('menu_edit')` |
+| `MenuItemDetailView` (PATCH/DELETE) | Any staff | `HasPermission('menu_edit')` |
+| `AcceptingOrdersToggleView` (POST) | Any staff | `IsRestaurantAdmin` |
+| `OperatingHoursBulkView` (PUT) | Any staff | `IsRestaurantAdmin` |
+| `HolidayOverrideListCreateView` (POST) | Any staff | `IsRestaurantAdmin` |
+| `TableListCreateView` (POST) | Any staff | `IsRestaurantAdmin` |
+| `TableDetailView` (PATCH/DELETE) | Any staff | `IsRestaurantAdmin` |
+| `HolidayOverrideDetailView` (PATCH/DELETE) | Any staff | `IsRestaurantAdmin` |
+| `PayoutListView` | Any staff | `IsRestaurantAdmin` |
+| `PayoutDetailView` | Any staff | `IsRestaurantAdmin` |
+| `ConnectStatusView` | Any staff | `IsRestaurantAdmin` |
+| `ConnectDashboardView` | Any staff | `IsRestaurantAdmin` |
+
+All GET endpoints on these views remain accessible to any staff member unless listed above as `IsRestaurantAdmin` for all methods. Write operations are gated by role.
 
 ### Email
 
@@ -189,7 +228,7 @@ Celery task: `send_invitation_email` — async send following existing pattern
 
 ### Navigation Changes
 
-- Add "Team" link to restaurant sidebar (visible to Owner/Admin only via `useMyRole`)
+- Add "Team" link to the restaurant navigation bar in `/account/restaurants/[slug]/` (the horizontal button bar pattern used across restaurant dashboard pages, visible to Owner/Admin only via `useMyRole`)
 - Guard existing routes:
   - Settings, Billing, Analytics, Team → Owner/Admin only
   - Menu editing → Owner/Admin, or Member with `menu_edit`
