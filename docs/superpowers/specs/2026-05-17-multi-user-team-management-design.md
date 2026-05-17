@@ -198,6 +198,18 @@ Apply new permission classes to existing views in `restaurants/views.py`:
 | `ConnectStatusView` | Any staff | `IsRestaurantAdmin` |
 | `ConnectDashboardView` | Any staff | `IsRestaurantAdmin` |
 
+**Views in other modules that also need gating:**
+
+| View (module) | Current Access | New Permission |
+|---------------|---------------|----------------|
+| `MenuUploadParseView` (views_menu_upload.py) | Any staff | `HasPermission('menu_edit')` |
+| `MenuUploadSaveView` (views_menu_upload.py) | Any staff | `HasPermission('menu_edit')` |
+| `MenuItemImageUploadView` (views_menu_upload.py) | Any staff | `HasPermission('menu_edit')` |
+| `MenuVersionActivateView` (views_menu_upload.py) | Any staff | `HasPermission('menu_edit')` |
+| `MenuVersionDetailView` (PATCH/DELETE) (views_menu_upload.py) | Any staff | `HasPermission('menu_edit')` |
+| `KitchenOrderUpdateView` (orders app) | Any staff | `HasPermission('order_manage')` |
+| `KitchenTabCloseView` (orders app) | Any staff | `HasPermission('order_manage')` |
+
 All GET endpoints on these views remain accessible to any staff member unless listed above as `IsRestaurantAdmin` for all methods. Write operations are gated by role.
 
 ### Email
