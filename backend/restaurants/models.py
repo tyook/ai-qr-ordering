@@ -96,12 +96,13 @@ class Subscription(models.Model):
 class RestaurantStaff(models.Model):
     class StaffRole(models.TextChoices):
         OWNER = "owner", "Owner"
-        MANAGER = "manager", "Manager"
-        KITCHEN = "kitchen", "Kitchen"
+        ADMIN = "admin", "Admin"
+        MEMBER = "member", "Member"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="staff_roles")
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="staff")
     role = models.CharField(max_length=10, choices=StaffRole.choices)
+    permissions = models.JSONField(default=dict, blank=True)
     invited_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

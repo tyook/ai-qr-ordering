@@ -39,7 +39,7 @@ class RestaurantStaffFactory(factory.django.DjangoModelFactory):
 
     user = factory.SubFactory(UserFactory)
     restaurant = factory.SubFactory(RestaurantFactory)
-    role = "manager"
+    role = "member"
 
 
 class MenuVersionFactory(factory.django.DjangoModelFactory):
