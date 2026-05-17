@@ -74,6 +74,22 @@ def send_payment_failed_email_task(restaurant_id: str):
 
 
 @shared_task
+def send_invitation_email_task(invitation_id: str):
+    """Send team invitation email (async)."""
+    from restaurants.models import Invitation
+    try:
+        invitation = Invitation.objects.select_related(
+            "restaurant", "invited_by"
+        ).get(id=invitation_id)
+    except Invitation.DoesNotExist:
+        logger.warning("send_invitation_email_task: invitation %s not found", invitation_id)
+        return
+
+    from restaurants.notifications import send_team_invitation_email
+    send_team_invitation_email(invitation)
+
+
+@shared_task
 def send_payment_success_email_task(restaurant_id: str, amount_cents: int, plan: str, period_end_timestamp: int):
     """Send payment success email after invoice paid (async)."""
     from restaurants.models import Restaurant

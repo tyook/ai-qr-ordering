@@ -125,6 +125,31 @@ def send_payment_failed_email(restaurant) -> None:
         logger.exception("Failed to send payment failed email for %s", restaurant.slug)
 
 
+def send_team_invitation_email(invitation) -> None:
+    """Send invitation email to a prospective team member."""
+    context = {
+        "restaurant_name": invitation.restaurant.name,
+        "invited_by_name": invitation.invited_by.name or invitation.invited_by.email,
+        "role_display": "an Admin" if invitation.role == "admin" else "a Member",
+        "invite_url": f"{settings.FRONTEND_URL}/invite/{invitation.token}",
+        "expires_date": invitation.expires_at.strftime("%B %d, %Y"),
+    }
+    html_message = render_to_string("emails/team_invitation.html", context)
+    plain_message = strip_tags(html_message)
+
+    try:
+        send_mail(
+            subject=f"You're invited to join {invitation.restaurant.name} on MenuChat",
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[invitation.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to send invitation email to %s", invitation.email)
+
+
 def send_payment_success_email(restaurant, amount_cents: int, plan: str, period_end_timestamp: int) -> None:
     """Notify restaurant owner that their subscription payment was received."""
     owner = restaurant.owner
