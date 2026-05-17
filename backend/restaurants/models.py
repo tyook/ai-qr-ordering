@@ -1,7 +1,10 @@
+import secrets
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Restaurant(models.Model):
@@ -110,6 +113,52 @@ class RestaurantStaff(models.Model):
 
     def __str__(self):
         return f"{self.user.email} @ {self.restaurant.name} ({self.role})"
+
+
+class Invitation(models.Model):
+    class InviteStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        EXPIRED = "expired", "Expired"
+        REVOKED = "revoked", "Revoked"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="invitations")
+    email = models.EmailField()
+    role = models.CharField(max_length=10, choices=[("admin", "Admin"), ("member", "Member")])
+    permissions = models.JSONField(default=dict, blank=True)
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_invitations"
+    )
+    status = models.CharField(
+        max_length=10, choices=InviteStatus.choices, default=InviteStatus.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["restaurant", "email"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_invitation",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        return self.status == "pending" and timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"Invite {self.email} to {self.restaurant.name} ({self.status})"
 
 
 class MenuVersion(models.Model):
