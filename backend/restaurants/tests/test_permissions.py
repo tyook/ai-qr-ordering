@@ -25,7 +25,7 @@ class TestRestaurantPermissions:
         owner = UserFactory()
         manager = UserFactory()
         restaurant = RestaurantFactory(owner=owner)
-        RestaurantStaffFactory(user=manager, restaurant=restaurant, role="manager")
+        RestaurantStaffFactory(user=manager, restaurant=restaurant, role="admin")
         api_client.force_authenticate(user=manager)
         response = api_client.get(f"/api/restaurants/{restaurant.slug}/")
         assert response.status_code == status.HTTP_200_OK

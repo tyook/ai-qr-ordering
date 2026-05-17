@@ -75,8 +75,8 @@ class TestRestaurantStaffModel:
         owner = User.objects.create_user(email="staffowner@example.com", password="testpass123")
         restaurant = Restaurant.objects.create(name="Staff Test", slug="staff-test", owner=owner)
         staff_user = User.objects.create_user(email="kitchen@example.com", password="testpass123")
-        staff = RestaurantStaff.objects.create(user=staff_user, restaurant=restaurant, role="kitchen")
-        assert staff.role == "kitchen"
+        staff = RestaurantStaff.objects.create(user=staff_user, restaurant=restaurant, role="member")
+        assert staff.role == "member"
         assert staff.restaurant == restaurant
 
 

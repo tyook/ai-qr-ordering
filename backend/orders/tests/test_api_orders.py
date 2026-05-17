@@ -190,7 +190,7 @@ class TestKitchenOrderUpdate:
     def kitchen_setup(self):
         restaurant = RestaurantFactory(slug="kitchen-test")
         kitchen_user = UserFactory()
-        RestaurantStaffFactory(user=kitchen_user, restaurant=restaurant, role="kitchen")
+        RestaurantStaffFactory(user=kitchen_user, restaurant=restaurant, role="member")
         order = OrderFactory(restaurant=restaurant, status="confirmed")
         return restaurant, kitchen_user, order
 

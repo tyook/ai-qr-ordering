@@ -1,7 +1,7 @@
 import pytest
 
 from restaurants.models import RestaurantStaff
-from restaurants.tests.factories import RestaurantFactory, RestaurantStaffFactory, UserFactory
+from restaurants.tests.factories import RestaurantStaffFactory
 
 
 @pytest.mark.django_db

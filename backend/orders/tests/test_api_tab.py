@@ -109,7 +109,7 @@ class TestTabClose:
     def test_staff_can_close_tab(self, api_client):
         restaurant = RestaurantFactory(slug="tab-staff-close")
         staff_user = UserFactory()
-        RestaurantStaffFactory(user=staff_user, restaurant=restaurant, role="manager")
+        RestaurantStaffFactory(user=staff_user, restaurant=restaurant, role="admin")
         tab = TabFactory(restaurant=restaurant, table_identifier="B1")
         api_client.force_authenticate(user=staff_user)
         response = api_client.post(f"/api/kitchen/tab/{tab.id}/close/")
