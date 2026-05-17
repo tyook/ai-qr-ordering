@@ -8,6 +8,17 @@ from restaurants.views_menu_upload import (
     MenuVersionDetailView,
     MenuVersionListView,
 )
+from restaurants.views_team import (
+    InvitationAcceptView,
+    InvitationValidateView,
+    InviteMemberView,
+    MemberDetailView,
+    MyRoleView,
+    ResendInvitationView,
+    RevokeInvitationView,
+    TeamListView,
+    TransferOwnershipView,
+)
 from restaurants.views import (
     AcceptingOrdersToggleView,
     BillingHistoryView,
@@ -201,4 +212,15 @@ urlpatterns = [
         OnboardingConnectStatusView.as_view(),
         name="connect-onboarding-status",
     ),
+    # Team Management
+    path("restaurants/<slug:slug>/team/", TeamListView.as_view(), name="team-list"),
+    path("restaurants/<slug:slug>/team/invite/", InviteMemberView.as_view(), name="team-invite"),
+    path("restaurants/<slug:slug>/team/<int:staff_id>/", MemberDetailView.as_view(), name="team-member-detail"),
+    path("restaurants/<slug:slug>/team/transfer-ownership/", TransferOwnershipView.as_view(), name="team-transfer-ownership"),
+    path("restaurants/<slug:slug>/team/invitations/<uuid:invitation_id>/resend/", ResendInvitationView.as_view(), name="team-resend-invitation"),
+    path("restaurants/<slug:slug>/team/invitations/<uuid:invitation_id>/", RevokeInvitationView.as_view(), name="team-revoke-invitation"),
+    path("restaurants/<slug:slug>/my-role/", MyRoleView.as_view(), name="my-role"),
+    # Invitations (public)
+    path("invitations/<str:token>/", InvitationValidateView.as_view(), name="invitation-validate"),
+    path("invitations/<str:token>/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),
 ]
