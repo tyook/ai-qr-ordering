@@ -149,6 +149,11 @@ import type {
   TabResponse,
   TabOrderResponse,
   TabPaymentResponse,
+  TeamResponse,
+  TeamInvitation,
+  StaffMember,
+  MyRoleResponse,
+  InvitationDetail,
 } from "@/types";
 
 // ── Auth ──
@@ -811,4 +816,73 @@ export async function completeOnboarding(): Promise<{ status: string }> {
 
 export async function dismissOnboarding(): Promise<{ status: string }> {
   return apiFetch("/api/account/onboarding/dismiss/", { method: "POST" });
+}
+
+// Team Management
+export async function fetchTeam(slug: string): Promise<TeamResponse> {
+  return apiFetch<TeamResponse>(`/api/restaurants/${slug}/team/`);
+}
+
+export async function inviteTeamMember(
+  slug: string,
+  data: { email: string; role: string; permissions?: Record<string, boolean> }
+): Promise<TeamInvitation> {
+  return apiFetch<TeamInvitation>(`/api/restaurants/${slug}/team/invite/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateTeamMember(
+  slug: string,
+  staffId: number,
+  data: { role?: string; permissions?: Record<string, boolean> }
+): Promise<StaffMember> {
+  return apiFetch<StaffMember>(`/api/restaurants/${slug}/team/${staffId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function removeTeamMember(slug: string, staffId: number): Promise<void> {
+  return apiFetch<void>(`/api/restaurants/${slug}/team/${staffId}/`, {
+    method: "DELETE",
+  });
+}
+
+export async function transferOwnership(slug: string, newOwnerId: string): Promise<void> {
+  return apiFetch<void>(`/api/restaurants/${slug}/team/transfer-ownership/`, {
+    method: "POST",
+    body: JSON.stringify({ new_owner_id: newOwnerId }),
+  });
+}
+
+export async function resendInvitation(slug: string, invitationId: string): Promise<TeamInvitation> {
+  return apiFetch<TeamInvitation>(`/api/restaurants/${slug}/team/invitations/${invitationId}/resend/`, {
+    method: "POST",
+  });
+}
+
+export async function revokeInvitation(slug: string, invitationId: string): Promise<void> {
+  return apiFetch<void>(`/api/restaurants/${slug}/team/invitations/${invitationId}/`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchMyRole(slug: string): Promise<MyRoleResponse> {
+  return apiFetch<MyRoleResponse>(`/api/restaurants/${slug}/my-role/`);
+}
+
+export async function fetchInvitationDetail(token: string): Promise<InvitationDetail> {
+  return apiFetch<InvitationDetail>(`/api/invitations/${token}/`);
+}
+
+export async function acceptInvitation(
+  token: string,
+  data?: { first_name?: string; last_name?: string; password?: string }
+): Promise<{ detail: string; restaurant_slug: string; role: string }> {
+  return apiFetch(`/api/invitations/${token}/accept/`, {
+    method: "POST",
+    body: JSON.stringify(data || {}),
+  });
 }
