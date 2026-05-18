@@ -28,6 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuthStore } from "@/stores/auth-store";
 import { useInvitationDetail, useAcceptInvitation } from "@/hooks/use-invitation";
 import { useToast } from "@/hooks/use-toast";
+import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 
 const PERMISSION_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   menu_edit: { label: "Edit menu items", icon: <Pencil className="h-4 w-4" /> },
@@ -66,6 +67,7 @@ export default function InviteAcceptancePage() {
   });
   const [regError, setRegError] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
+  const [socialLoginError, setSocialLoginError] = useState("");
 
   useEffect(() => {
     checkAuth();
@@ -372,6 +374,13 @@ export default function InviteAcceptancePage() {
               <span className="bg-card px-2 text-muted-foreground">or</span>
             </div>
           </div>
+
+          <SocialLoginButtons
+            onSuccess={handleAccept}
+            onError={(err) => setSocialLoginError(err)}
+            disabled={isRegistering}
+          />
+          {socialLoginError && <p className="text-destructive text-sm text-center">{socialLoginError}</p>}
 
           <p className="text-sm text-center text-muted-foreground">
             Already have an account?{" "}
