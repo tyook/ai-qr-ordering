@@ -100,11 +100,7 @@ export default function InviteAcceptancePage() {
         last_name: regForm.last_name,
       });
 
-      const result = await acceptMutation.mutateAsync({
-        first_name: regForm.first_name,
-        last_name: regForm.last_name,
-        password: regForm.password,
-      });
+      const result = await acceptMutation.mutateAsync();
       toast({ title: "Account created and invitation accepted!" });
       router.push(getRedirectPath(result.role, result.restaurant_slug));
     } catch (err) {
