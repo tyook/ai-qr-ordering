@@ -73,7 +73,7 @@ export default function InviteAcceptancePage() {
 
   const handleAccept = async () => {
     try {
-      const result = await acceptMutation.mutateAsync();
+      const result = await acceptMutation.mutateAsync(undefined);
       toast({ title: "Invitation accepted!", description: `You have joined ${invitation?.restaurant_name}.` });
       router.push(getRedirectPath(result.role, result.restaurant_slug));
     } catch (err) {
@@ -100,7 +100,7 @@ export default function InviteAcceptancePage() {
         last_name: regForm.last_name,
       });
 
-      const result = await acceptMutation.mutateAsync();
+      const result = await acceptMutation.mutateAsync(undefined);
       toast({ title: "Account created and invitation accepted!" });
       router.push(getRedirectPath(result.role, result.restaurant_slug));
     } catch (err) {

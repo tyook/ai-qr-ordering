@@ -15,6 +15,6 @@ export function useCan(slug: string) {
   return (permission: string): boolean => {
     if (!role) return false;
     if (role.is_admin) return true;
-    return (role as Record<string, unknown>)[permission] === true;
+    return (role as unknown as Record<string, unknown>)[permission] === true;
   };
 }
