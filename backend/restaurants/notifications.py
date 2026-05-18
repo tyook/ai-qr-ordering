@@ -137,17 +137,14 @@ def send_team_invitation_email(invitation) -> None:
     html_message = render_to_string("emails/team_invitation.html", context)
     plain_message = strip_tags(html_message)
 
-    try:
-        send_mail(
-            subject=f"You're invited to join {invitation.restaurant.name} on MenuChat",
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[invitation.email],
-            html_message=html_message,
-            fail_silently=False,
-        )
-    except Exception:
-        logger.exception("Failed to send invitation email to %s", invitation.email)
+    send_mail(
+        subject=f"You're invited to join {invitation.restaurant.name} on MenuChat",
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[invitation.email],
+        html_message=html_message,
+        fail_silently=False,
+    )
 
 
 def send_payment_success_email(restaurant, amount_cents: int, plan: str, period_end_timestamp: int) -> None:
