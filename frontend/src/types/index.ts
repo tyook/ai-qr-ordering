@@ -451,3 +451,51 @@ export interface HallStatusTable {
   has_tab: boolean;
   tab: HallStatusTab | null;
 }
+
+// Team types
+export interface StaffMember {
+  id: number;
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: "owner" | "admin" | "member";
+  permissions: Record<string, boolean>;
+  invited_at: string;
+}
+
+export interface TeamInvitation {
+  id: string;
+  email: string;
+  role: "admin" | "member";
+  permissions: Record<string, boolean>;
+  status: "pending" | "accepted" | "expired" | "revoked";
+  invited_by_name: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface TeamResponse {
+  members: StaffMember[];
+  invitations: TeamInvitation[];
+}
+
+export interface MyRoleResponse {
+  role: "owner" | "admin" | "member";
+  is_admin: boolean;
+  menu_edit: boolean;
+  order_manage: boolean;
+}
+
+export interface InvitationDetail {
+  id: string;
+  restaurant_name: string;
+  restaurant_slug: string;
+  email: string;
+  role: "admin" | "member";
+  permissions: Record<string, boolean>;
+  status: string;
+  invited_by_name: string;
+  is_expired: boolean;
+  expires_at: string;
+}
