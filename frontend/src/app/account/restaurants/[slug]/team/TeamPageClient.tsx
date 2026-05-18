@@ -263,8 +263,8 @@ export default function TeamPageClient() {
                         invitation={invitation}
                         onResend={handleResendInvitation}
                         onRevoke={handleRevokeInvitation}
-                        isResending={resendInvitation.isPending}
-                        isRevoking={revokeInvitation.isPending}
+                        isResending={resendInvitation.isPending && resendInvitation.variables === invitation.id}
+                        isRevoking={revokeInvitation.isPending && revokeInvitation.variables === invitation.id}
                       />
                     ))}
                   </div>

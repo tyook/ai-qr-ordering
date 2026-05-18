@@ -89,7 +89,7 @@ export function MemberRow({
   const canShowMenu =
     (isOwner && member.role === "owner" && isMe) ||
     (isOwner && member.role !== "owner") ||
-    (isAdmin && member.role === "member");
+    (isAdmin && !isOwner && member.role !== "owner" && member.user_id !== currentUserId);
 
   function handleOpenEditPermissions() {
     setEditedPermissions({ ...member.permissions });
@@ -130,7 +130,7 @@ export function MemberRow({
   }
 
   const staffForTransfer = allMembers.filter(
-    (m) => m.user_id !== currentUserId && (m.role === "admin" || m.role === "member")
+    (m) => m.user_id !== currentUserId && m.role === "admin"
   );
 
   return (
