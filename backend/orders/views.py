@@ -393,6 +393,11 @@ class KitchenOrderUpdateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        from restaurants.services import TeamService
+        perms = TeamService.get_effective_permissions(request.user, order.restaurant)
+        if perms is None or (not perms["is_admin"] and not perms.get("order_manage")):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
         new_status = request.data.get("status")
         order = OrderService.update_order_status(order, new_status, request.user)
         return Response(OrderResponseSerializer(order).data)

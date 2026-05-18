@@ -161,13 +161,9 @@ class KitchenTabCloseView(APIView):
             tab = Tab.objects.select_related("restaurant").get(id=tab_id)
         except Tab.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        user = request.user
-        restaurant = tab.restaurant
-        is_staff = (
-            restaurant.owner == user
-            or RestaurantStaff.objects.filter(user=user, restaurant=restaurant).exists()
-        )
-        if not is_staff:
+        from restaurants.services import TeamService
+        perms = TeamService.get_effective_permissions(request.user, tab.restaurant)
+        if perms is None or (not perms["is_admin"] and not perms.get("order_manage")):
             return Response(status=status.HTTP_403_FORBIDDEN)
         TabService.close_tab(tab)
         return Response(TabResponseSerializer(tab).data)

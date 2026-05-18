@@ -1,6 +1,7 @@
 import logging
 
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -16,12 +17,16 @@ from restaurants.serializers.menu_upload_serializers import (
 from restaurants.services.image_upload_service import ImageUploadService
 from restaurants.services.menu_upload_service import MenuUploadService
 from restaurants.services.menu_version_service import MenuVersionService
+from restaurants.permissions import HasPermission
 from restaurants.views import RestaurantMixin
 
 logger = logging.getLogger(__name__)
 
 
 class MenuUploadParseView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("menu_edit")]
+
     def post(self, request, slug):
         restaurant = self.get_restaurant()
         serializer = MenuUploadParseSerializer(data=request.data)
@@ -45,6 +50,9 @@ class MenuUploadParseView(RestaurantMixin, APIView):
 
 
 class MenuUploadSaveView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("menu_edit")]
+
     def post(self, request, slug):
         restaurant = self.get_restaurant()
         serializer = MenuSaveSerializer(data=request.data)
@@ -80,6 +88,9 @@ class MenuItemImageUploadView(RestaurantMixin, APIView):
     """Upload a single image for a menu item and return the public URL."""
 
     MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("menu_edit")]
 
     def post(self, request, slug):
         self.get_restaurant()  # permission check
@@ -134,6 +145,11 @@ class MenuVersionListView(RestaurantMixin, APIView):
 
 
 class MenuVersionDetailView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        if self.request.method in ("PATCH", "DELETE"):
+            return [IsAuthenticated(), HasPermission("menu_edit")]
+        return super().get_permissions()
+
     def patch(self, request, slug, pk):
         restaurant = self.get_restaurant()
         version = _get_version_or_404(restaurant, pk)
@@ -162,6 +178,9 @@ def _get_version_or_404(restaurant, pk):
 
 
 class MenuVersionActivateView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("menu_edit")]
+
     def post(self, request, slug, pk):
         restaurant = self.get_restaurant()
         version = _get_version_or_404(restaurant, pk)

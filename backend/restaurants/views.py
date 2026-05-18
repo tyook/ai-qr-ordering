@@ -15,7 +15,7 @@ from restaurants.models import (
     RestaurantStaff,
     Subscription,
 )
-from restaurants.permissions import HasActiveSubscription
+from restaurants.permissions import HasActiveSubscription, IsRestaurantAdmin, HasPermission
 from restaurants.serializers import (
     HolidayOverrideSerializer,
     MenuCategorySerializer,
@@ -47,6 +47,11 @@ class RestaurantDetailView(generics.RetrieveUpdateAPIView):
 
     serializer_class = RestaurantSerializer
     lookup_field = "slug"
+
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
 
     def get_queryset(self):
         return RestaurantService.get_user_restaurants(self.request.user)
@@ -81,6 +86,11 @@ class RestaurantMixin:
 class MenuCategoryListCreateView(RestaurantMixin, generics.ListCreateAPIView):
     serializer_class = MenuCategorySerializer
 
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), HasPermission("menu_edit")]
+        return [IsAuthenticated(), HasActiveSubscription()]
+
     def _get_active_version(self, restaurant):
         return restaurant.menu_versions.filter(is_active=True).first()
 
@@ -104,6 +114,11 @@ class MenuCategoryDetailView(RestaurantMixin, generics.RetrieveUpdateAPIView):
     serializer_class = MenuCategorySerializer
     lookup_field = "pk"
 
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), HasPermission("menu_edit")]
+        return [IsAuthenticated(), HasActiveSubscription()]
+
     def get_queryset(self):
         restaurant = self.get_restaurant()
         active_version = restaurant.menu_versions.filter(is_active=True).first()
@@ -114,6 +129,11 @@ class MenuCategoryDetailView(RestaurantMixin, generics.RetrieveUpdateAPIView):
 
 class MenuItemListCreateView(RestaurantMixin, generics.ListCreateAPIView):
     serializer_class = MenuItemSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), HasPermission("menu_edit")]
+        return [IsAuthenticated(), HasActiveSubscription()]
 
     def _get_active_version(self, restaurant):
         return restaurant.menu_versions.filter(is_active=True).first()
@@ -139,6 +159,11 @@ class MenuItemListCreateView(RestaurantMixin, generics.ListCreateAPIView):
 class MenuItemDetailView(RestaurantMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MenuItemSerializer
     lookup_field = "pk"
+
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), HasPermission("menu_edit")]
+        return [IsAuthenticated(), HasActiveSubscription()]
 
     def _get_active_version(self, restaurant):
         return restaurant.menu_versions.filter(is_active=True).first()
@@ -181,7 +206,7 @@ class SubscriptionDetailView(RestaurantMixin, APIView):
     """GET /api/restaurants/:slug/subscription/ - View subscription details."""
 
     def get_permissions(self):
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def get(self, request, slug):
         restaurant = self.get_restaurant()
@@ -199,7 +224,7 @@ class CreateCheckoutSessionView(RestaurantMixin, APIView):
     """POST /api/restaurants/:slug/subscription/checkout/ - Create Stripe Checkout session."""
 
     def get_permissions(self):
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def post(self, request, slug):
         restaurant = self.get_restaurant()
@@ -215,7 +240,7 @@ class CreateBillingPortalView(RestaurantMixin, APIView):
     """POST /api/restaurants/:slug/subscription/portal/ - Open Stripe Billing Portal."""
 
     def get_permissions(self):
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def post(self, request, slug):
         restaurant = self.get_restaurant()
@@ -227,7 +252,7 @@ class CancelSubscriptionView(RestaurantMixin, APIView):
     """POST /api/restaurants/:slug/subscription/cancel/ - Cancel subscription at period end."""
 
     def get_permissions(self):
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def post(self, request, slug):
         restaurant = self.get_restaurant()
@@ -239,7 +264,7 @@ class ReactivateSubscriptionView(RestaurantMixin, APIView):
     """POST /api/restaurants/:slug/subscription/reactivate/ - Undo pending cancellation."""
 
     def get_permissions(self):
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def post(self, request, slug):
         restaurant = self.get_restaurant()
@@ -251,7 +276,7 @@ class BillingHistoryView(RestaurantMixin, APIView):
     """GET /api/restaurants/:slug/subscription/invoices/ - List Stripe invoices."""
 
     def get_permissions(self):
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def get(self, request, slug):
         restaurant = self.get_restaurant()
@@ -305,6 +330,9 @@ class PayoutPagination(PageNumberPagination):
 
 
 class PayoutListView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), IsRestaurantAdmin()]
+
     def get(self, request, slug):
         restaurant = self.get_restaurant()
         payouts = Payout.objects.filter(restaurant=restaurant)
@@ -315,6 +343,9 @@ class PayoutListView(RestaurantMixin, APIView):
 
 
 class PayoutDetailView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), IsRestaurantAdmin()]
+
     def get(self, request, slug, payout_id):
         restaurant = self.get_restaurant()
         try:
@@ -330,6 +361,9 @@ from restaurants.services import ConnectService
 
 
 class ConnectOnboardView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), IsRestaurantAdmin()]
+
     def post(self, request, slug):
         restaurant = self.get_restaurant()
         result = ConnectService.create_onboarding_link(restaurant)
@@ -337,6 +371,9 @@ class ConnectOnboardView(RestaurantMixin, APIView):
 
 
 class ConnectStatusView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), IsRestaurantAdmin()]
+
     def get(self, request, slug):
         restaurant = self.get_restaurant()
         result = ConnectService.get_connect_status(restaurant)
@@ -344,6 +381,9 @@ class ConnectStatusView(RestaurantMixin, APIView):
 
 
 class ConnectDashboardView(RestaurantMixin, APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), IsRestaurantAdmin()]
+
     def post(self, request, slug):
         restaurant = self.get_restaurant()
         result = ConnectService.create_dashboard_link(restaurant)
@@ -398,6 +438,11 @@ class TableListCreateView(RestaurantMixin, generics.ListCreateAPIView):
     serializer_class = TableSerializer
     pagination_class = None
 
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
+
     def get_queryset(self):
         restaurant = self.get_restaurant()
         return Table.objects.filter(restaurant=restaurant)
@@ -412,6 +457,11 @@ class TableDetailView(RestaurantMixin, generics.RetrieveUpdateDestroyAPIView):
 
     serializer_class = TableSerializer
     lookup_field = "pk"
+
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
 
     def get_queryset(self):
         restaurant = self.get_restaurant()
@@ -479,6 +529,9 @@ class HallStatusView(RestaurantMixin, APIView):
 
 class RestaurantAnalyticsView(RestaurantMixin, APIView):
     """GET /api/restaurants/:slug/analytics/?period=7d|30d|90d|custom&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD"""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), IsRestaurantAdmin()]
 
     def get(self, request, slug):
         from datetime import datetime, timedelta
@@ -602,6 +655,11 @@ class RestaurantAnalyticsView(RestaurantMixin, APIView):
 class AcceptingOrdersToggleView(RestaurantMixin, APIView):
     """POST /api/restaurants/:slug/accepting-orders/ - Toggle accepting_orders."""
 
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
+
     def get(self, request, slug):
         restaurant = self.get_restaurant()
         return Response({
@@ -634,6 +692,11 @@ class OperatingHoursBulkView(RestaurantMixin, APIView):
     PUT accepts a list of slot objects (multiple per day allowed, zero = closed) and replaces all.
     """
 
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
+
     def get(self, request, slug):
         restaurant = self.get_restaurant()
         hours = restaurant.operating_hours.all()
@@ -657,6 +720,11 @@ class HolidayOverrideListCreateView(RestaurantMixin, generics.ListCreateAPIView)
 
     serializer_class = HolidayOverrideSerializer
 
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
+
     def get_queryset(self):
         restaurant = self.get_restaurant()
         return restaurant.holiday_overrides.all()
@@ -670,6 +738,11 @@ class HolidayOverrideDetailView(RestaurantMixin, generics.RetrieveUpdateDestroyA
     """GET/PATCH/DELETE /api/restaurants/:slug/holiday-overrides/:pk/"""
 
     serializer_class = HolidayOverrideSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated(), IsRestaurantAdmin()]
+        return [IsAuthenticated(), HasActiveSubscription()]
 
     def get_queryset(self):
         restaurant = self.get_restaurant()
