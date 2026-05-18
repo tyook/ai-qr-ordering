@@ -45,7 +45,7 @@ const BASELINE_PERMISSIONS = [
 
 function getRedirectPath(role: string, slug: string) {
   if (role === "admin" || role === "owner") {
-    return `/account/restaurants/${slug}`;
+    return `/account/restaurants/${slug}/orders`;
   }
   return `/kitchen/${slug}`;
 }
