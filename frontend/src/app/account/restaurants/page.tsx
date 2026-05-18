@@ -7,7 +7,72 @@ import { Card } from "@/components/ui/card";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRequireRestaurantAccess } from "@/hooks/use-auth";
 import { useMyRestaurants } from "@/hooks/use-my-restaurants";
+import { useCan } from "@/hooks/use-my-role";
 import { RestaurantDetailsStep } from "@/components/onboarding/restaurant-details-step";
+import type { Restaurant } from "@/types";
+
+function RestaurantCard({ r }: { r: Restaurant }) {
+  const can = useCan(r.slug);
+  const isAdmin = can("is_admin");
+  const canEditMenu = can("menu_edit");
+
+  return (
+    <Card className="bg-card border border-border rounded-2xl p-5 hover:border-primary/30 transition-colors">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">{r.name}</h2>
+          <p className="text-sm text-muted-foreground">/{r.slug}</p>
+          {r.subscription && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
+                {r.subscription.plan_name}
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                r.subscription.is_active ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              }`}>
+                {r.subscription.status.replace("_", " ")}
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {canEditMenu && (
+            <Link href={`/account/restaurants/${r.slug}/menu`}>
+              <Button variant="outline" size="sm">Menu</Button>
+            </Link>
+          )}
+          <Link href={`/account/restaurants/${r.slug}/orders`}>
+            <Button variant="outline" size="sm">Orders</Button>
+          </Link>
+          {isAdmin && (
+            <>
+              <Link href={`/account/restaurants/${r.slug}/analytics`}>
+                <Button variant="outline" size="sm">Analytics</Button>
+              </Link>
+              <Link href={`/account/restaurants/${r.slug}/billing`}>
+                <Button variant="outline" size="sm">Billing</Button>
+              </Link>
+              <Link href={`/account/restaurants/${r.slug}/settings`}>
+                <Button variant="outline" size="sm">Settings</Button>
+              </Link>
+              <Link href={`/account/restaurants/${r.slug}/team`}>
+                <Button variant="outline" size="sm">Team</Button>
+              </Link>
+            </>
+          )}
+          {r.payment_model === "tab" && (
+            <Link href={`/account/restaurants/${r.slug}/hall-status`}>
+              <Button variant="outline" size="sm">Hall Status</Button>
+            </Link>
+          )}
+          <Link href={`/kitchen/${r.slug}`}>
+            <Button size="sm">Kitchen</Button>
+          </Link>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export default function RestaurantsDashboard() {
   const isAuthenticated = useRequireRestaurantAccess();
@@ -54,51 +119,7 @@ export default function RestaurantsDashboard() {
 
         <div className="grid gap-4">
           {restaurants?.map((r) => (
-            <Card key={r.id} className="bg-card border border-border rounded-2xl p-5 hover:border-primary/30 transition-colors">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground">{r.name}</h2>
-                  <p className="text-sm text-muted-foreground">/{r.slug}</p>
-                  {r.subscription && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
-                        {r.subscription.plan_name}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        r.subscription.is_active ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-                      }`}>
-                        {r.subscription.status.replace("_", " ")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Link href={`/account/restaurants/${r.slug}/menu`}>
-                    <Button variant="outline" size="sm">Menu</Button>
-                  </Link>
-                  <Link href={`/account/restaurants/${r.slug}/orders`}>
-                    <Button variant="outline" size="sm">Orders</Button>
-                  </Link>
-                  <Link href={`/account/restaurants/${r.slug}/analytics`}>
-                    <Button variant="outline" size="sm">Analytics</Button>
-                  </Link>
-                  <Link href={`/account/restaurants/${r.slug}/billing`}>
-                    <Button variant="outline" size="sm">Billing</Button>
-                  </Link>
-                  <Link href={`/account/restaurants/${r.slug}/settings`}>
-                    <Button variant="outline" size="sm">Settings</Button>
-                  </Link>
-                  {r.payment_model === "tab" && (
-                    <Link href={`/account/restaurants/${r.slug}/hall-status`}>
-                      <Button variant="outline" size="sm">Hall Status</Button>
-                    </Link>
-                  )}
-                  <Link href={`/kitchen/${r.slug}`}>
-                    <Button size="sm">Kitchen</Button>
-                  </Link>
-                </div>
-              </div>
-            </Card>
+            <RestaurantCard key={r.id} r={r} />
           ))}
           {(!restaurants || restaurants.length === 0) && (
             <p className="text-center text-muted-foreground py-12">
