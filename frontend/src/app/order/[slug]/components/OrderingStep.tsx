@@ -10,11 +10,12 @@ import type { MenuCategory } from "@/types";
 interface OrderingStepProps {
   slug: string;
   categories: MenuCategory[];
+  taxRate: string;
 }
 
 type ActiveTab = "menu" | "voice";
 
-export function OrderingStep({ slug, categories }: OrderingStepProps) {
+export function OrderingStep({ slug, categories, taxRate }: OrderingStepProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("menu");
 
   return (
@@ -75,7 +76,7 @@ export function OrderingStep({ slug, categories }: OrderingStepProps) {
       </div>
 
       {/* Persistent cart bottom bar */}
-      <CartBottomBar />
+      <CartBottomBar taxRate={taxRate} />
     </div>
   );
 }

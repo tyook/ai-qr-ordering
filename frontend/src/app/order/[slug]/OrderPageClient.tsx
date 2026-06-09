@@ -106,7 +106,7 @@ export default function OrderPage() {
           acceptingOrders={menu.accepting_orders}
         />
       )}
-      {step === "ordering" && <OrderingStep slug={slug} categories={menu.categories} />}
+      {step === "ordering" && <OrderingStep slug={slug} categories={menu.categories} taxRate={menu.tax_rate} />}
       {step === "cart" && <ConfirmationStep slug={slug} taxRate={menu.tax_rate} paymentMode={menu.payment_mode ?? "stripe"} />}
       {step === "payment" && <PaymentStep taxRate={menu.tax_rate} />}
       {step === "submitted" && <SubmittedStep slug={slug} />}

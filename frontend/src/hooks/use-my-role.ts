@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchMyRole } from "@/lib/api";
-import type { MyRoleResponse } from "@/types";
 
 export function useMyRole(slug: string) {
   return useQuery({
