@@ -373,6 +373,17 @@ export default function SettingsPage() {
           </div>
         </Card>
 
+        {/* POS Integration */}
+        <Card className="bg-card border border-border rounded-2xl p-6 mb-6">
+          <h2 className="text-lg font-semibold mb-4">POS Integration</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Connect your point-of-sale system (Toast, Clover, Square) to sync orders automatically.
+          </p>
+          <Link href={`/account/restaurants/${params.slug}/settings/integrations`}>
+            <Button variant="outline">Manage POS Integration</Button>
+          </Link>
+        </Card>
+
         {/* Operating Hours */}
         <OperatingHoursCard slug={params.slug} />
 

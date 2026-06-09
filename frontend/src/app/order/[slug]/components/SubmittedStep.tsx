@@ -214,7 +214,10 @@ export function SubmittedStep({ slug }: SubmittedStepProps) {
             variant="outline"
             size="lg"
             className="w-full"
-            onClick={() => setStep("ordering")}
+            onClick={() => {
+              useOrderStore.setState({ parsedItems: [], parsedAllergies: [], totalPrice: "0.00", rawInput: "" });
+              setStep("ordering");
+            }}
           >
             Order More
           </Button>

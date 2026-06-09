@@ -139,7 +139,10 @@ export default function TabReviewStep({ slug }: TabReviewStepProps) {
           Pay By Item
         </button>
         <button
-          onClick={() => setStep("ordering")}
+          onClick={() => {
+            useOrderStore.setState({ parsedItems: [], parsedAllergies: [], totalPrice: "0.00", rawInput: "" });
+            setStep("ordering");
+          }}
           className="w-full py-3 text-center text-sm text-zinc-400"
         >
           Order More

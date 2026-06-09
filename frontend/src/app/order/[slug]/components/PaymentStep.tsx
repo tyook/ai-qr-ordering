@@ -10,12 +10,25 @@ import {
 } from "@stripe/react-stripe-js";
 import type { Appearance } from "@stripe/stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrderStore } from "@/stores/order-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { confirmPayment, confirmTabPayment, createPayment, saveCardConsent } from "@/lib/api";
 import type { SavedPaymentMethod, ConfirmOrderItem } from "@/types";
+
+function PaymentOverlay({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+      <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+      <p className="text-lg font-semibold text-foreground">Processing payment...</p>
+      <p className="text-sm text-muted-foreground mt-1">Please don&apos;t close this page</p>
+    </div>
+  );
+}
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
@@ -151,21 +164,24 @@ function PaymentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <PaymentElement />
-      {paymentError && (
-        <p className="text-destructive text-sm mt-4">{paymentError}</p>
-      )}
-      <Button
-        type="submit"
-        variant="gradient"
-        size="lg"
-        className="w-full glow-primary mt-4"
-        disabled={!stripe || isProcessing}
-      >
-        {isProcessing ? "Processing payment..." : "Pay Now"}
-      </Button>
-    </form>
+    <>
+      <PaymentOverlay visible={isProcessing} />
+      <form onSubmit={handleSubmit}>
+        <PaymentElement />
+        {paymentError && (
+          <p className="text-destructive text-sm mt-4">{paymentError}</p>
+        )}
+        <Button
+          type="submit"
+          variant="gradient"
+          size="lg"
+          className="w-full glow-primary mt-4"
+          disabled={!stripe || isProcessing}
+        >
+          {isProcessing ? "Processing payment..." : "Pay Now"}
+        </Button>
+      </form>
+    </>
   );
 }
 
@@ -271,6 +287,7 @@ export function PaymentStep({ taxRate }: PaymentStepProps) {
 
   return (
     <div className="max-w-lg mx-auto px-6 py-8">
+      <PaymentOverlay visible={isProcessing} />
       <div className="mb-6">
         <p className="text-[11px] uppercase tracking-[3px] text-muted-foreground mb-2">
           Checkout

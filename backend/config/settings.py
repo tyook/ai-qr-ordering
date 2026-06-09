@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "channels",
     "django_celery_beat",
+    "anymail",
     # Local
     "accounts",
     "restaurants",
@@ -180,6 +181,9 @@ FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 EMAIL_BACKEND = config(
     "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
 )
+ANYMAIL = {
+    "SENDGRID_API_KEY": config("SENDGRID_API_KEY", default=""),
+}
 EMAIL_HOST = config("EMAIL_HOST", default="localhost")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
